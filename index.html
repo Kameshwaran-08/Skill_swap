@@ -1924,10 +1924,18 @@ function mkMatchCard(u){
           : `<button class="btn btn-sec btn-sm" onclick="openConnModal('${escHtml(u.username)}')">🤝 Connect (SYN)</button>`
       }
     </div>`;
+  // Load real profile photo asynchronously
+  if(typeof getAvatarUrl === 'function') {
+    getAvatarUrl(u.username).then(url => {
+      if (!url) return;
+      const avEl = d.querySelector('.mc-av');
+      if (!avEl) return;
+      const ini = (u.name||u.username).split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+      avEl.innerHTML = `<img src="${url}" class="mc-av-img" alt="${escHtml(u.username)}" onerror="this.parentElement.textContent='${ini}'"/>`;
+    });
+  }
   return d;
 }
-
-function filterMatches(){
   const q = document.getElementById('mFilter').value.toLowerCase();
   document.querySelectorAll('#allMatches .mc').forEach(c => {
     c.style.display = c.textContent.toLowerCase().includes(q) ? '' : 'none';
@@ -2084,6 +2092,49 @@ function appendBubble(sender,msg,isMine,scroll=true){
   if(!box) return;
   const empty = box.querySelector('.chat-empty-state');
   if(empty) empty.remove();
+
+  // ── Image message ──
+  if(msg && msg.startsWith('__IMG__')){
+    const [url,name] = msg.replace('__IMG__','').split('||');
+    const row = document.createElement('div');
+    row.className='msg-row';
+    row.innerHTML=`
+      <div class="img-bubble" style="margin-left:${isMine?'auto':'0'};margin-right:${isMine?'0':'auto'}">
+        <img src="${url}" alt="${name||'image'}" loading="lazy" onclick="openLightbox('${url}')"/>
+      </div>
+      <div class="msg-meta ${isMine?'mine':'theirs'}">
+        ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
+        ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
+      </div>`;
+    box.appendChild(row);
+    if(scroll) box.scrollTop=box.scrollHeight;
+    return;
+  }
+
+  // ── File message ──
+  if(msg && msg.startsWith('__FILE__')){
+    const [url,name,size,type] = msg.replace('__FILE__','').split('||');
+    const icon = (typeof fileIcon==='function') ? fileIcon(type||'') : '📁';
+    const row = document.createElement('div');
+    row.className='msg-row';
+    row.innerHTML=`
+      <a href="${url}" target="_blank" rel="noopener" class="file-bubble" style="margin-left:${isMine?'auto':'0'}">
+        <div class="file-icon">${icon}</div>
+        <div class="file-info">
+          <div class="file-name">${escHtml(name||'File')}</div>
+          <div class="file-size">${escHtml(size||'')} · tap to download</div>
+        </div>
+      </a>
+      <div class="msg-meta ${isMine?'mine':'theirs'}">
+        ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
+        ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
+      </div>`;
+    box.appendChild(row);
+    if(scroll) box.scrollTop=box.scrollHeight;
+    return;
+  }
+
+  // ── Normal text message ──
   const row = document.createElement('div');
   row.className='msg-row';
   row.innerHTML=`
@@ -2612,20 +2663,7 @@ async function uploadAvatar(event) {
 
 /* renderProfile photo load is handled via setTimeout inside renderProfile */
 
-/* Patch mkMatchCard to show real photo on match cards */
-const _origMkMatchCard = mkMatchCard;
-function mkMatchCard(u) {
-  const card = _origMkMatchCard(u);
-  getAvatarUrl(u.username).then(url => {
-    if (!url) return;
-    const avEl = card.querySelector('.mc-av');
-    if (!avEl) return;
-    const initials = (u.name || u.username).split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
-    avEl.innerHTML = `<img src="${url}" class="mc-av-img" alt="${u.username}"
-      onerror="this.parentElement.textContent='${initials}'"/>`;
-  });
-  return card;
-}
+/* mkMatchCard photo load is handled directly inside mkMatchCard */
 
 /* ════════════════════════════════════════════
    FILE / IMAGE SHARING IN CHAT
@@ -2700,56 +2738,7 @@ async function sendFile(event) {
   }
 }
 
-/* Patch appendBubble to render file/image messages */
-const _origAppendBubble = appendBubble;
-function appendBubble(sender, msg, isMine, scroll=true) {
-  if (msg && msg.startsWith('__IMG__')) {
-    const [url, name] = msg.replace('__IMG__','').split('||');
-    const box = document.getElementById('chatMsgs');
-    if (!box) return;
-    const empty = box.querySelector('.chat-empty-state');
-    if (empty) empty.remove();
-    const row = document.createElement('div');
-    row.className = 'msg-row';
-    row.innerHTML = `
-      <div class="img-bubble ${isMine?'mine':'theirs'}" style="margin-left:${isMine?'auto':'0'};margin-right:${isMine?'0':'auto'}">
-        <img src="${url}" alt="${name||'image'}" loading="lazy" onclick="openLightbox('${url}')"/>
-      </div>
-      <div class="msg-meta ${isMine?'mine':'theirs'}">
-        ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
-        ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
-      </div>`;
-    box.appendChild(row);
-    if (scroll) box.scrollTop = box.scrollHeight;
-    return;
-  }
-  if (msg && msg.startsWith('__FILE__')) {
-    const parts = msg.replace('__FILE__','').split('||');
-    const [url, name, size, type] = parts;
-    const box = document.getElementById('chatMsgs');
-    if (!box) return;
-    const empty = box.querySelector('.chat-empty-state');
-    if (empty) empty.remove();
-    const row = document.createElement('div');
-    row.className = 'msg-row';
-    row.innerHTML = `
-      <a href="${url}" target="_blank" rel="noopener" class="file-bubble ${isMine?'mine':'theirs'}" style="margin-left:${isMine?'auto':'0'}">
-        <div class="file-icon">${fileIcon(type||'')}</div>
-        <div class="file-info">
-          <div class="file-name">${escHtml(name||'File')}</div>
-          <div class="file-size">${escHtml(size||'')} · tap to download</div>
-        </div>
-      </a>
-      <div class="msg-meta ${isMine?'mine':'theirs'}">
-        ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
-        ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
-      </div>`;
-    box.appendChild(row);
-    if (scroll) box.scrollTop = box.scrollHeight;
-    return;
-  }
-  _origAppendBubble(sender, msg, isMine, scroll);
-}
+/* appendBubble file/image logic is handled directly inside appendBubble */
 
 function openLightbox(url) {
   const lb  = document.getElementById('imgLightbox');
