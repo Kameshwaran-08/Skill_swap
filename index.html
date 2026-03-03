@@ -1936,6 +1936,8 @@ function mkMatchCard(u){
   }
   return d;
 }
+
+function filterMatches(){
   const q = document.getElementById('mFilter').value.toLowerCase();
   document.querySelectorAll('#allMatches .mc').forEach(c => {
     c.style.display = c.textContent.toLowerCase().includes(q) ? '' : 'none';
