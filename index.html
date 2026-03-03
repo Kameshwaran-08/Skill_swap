@@ -1148,6 +1148,48 @@ footer{
   </div>
 </div>
 
+<!-- View Profile Modal -->
+<div id="mViewProfile" class="moverlay hidden" onclick="if(event.target===this)closeModal('mViewProfile')">
+  <div class="mbox" style="max-width:480px;padding:0;overflow:hidden">
+    <div id="vp-banner" style="height:80px;background:linear-gradient(135deg,var(--a),var(--a2));position:relative">
+      <button class="mclose" onclick="closeModal('mViewProfile')" style="position:absolute;top:10px;right:10px">✕</button>
+    </div>
+    <div style="padding:0 24px 24px">
+      <div style="display:flex;align-items:flex-end;gap:14px;margin-top:-36px;margin-bottom:16px">
+        <div id="vp-photo-wrap" style="flex-shrink:0;border:3px solid var(--bg2);border-radius:50%"></div>
+        <div style="padding-bottom:4px;flex:1;min-width:0">
+          <div id="vp-name" style="font-size:18px;font-weight:800;letter-spacing:-.4px"></div>
+          <div id="vp-handle" style="font-size:12px;color:var(--txt2)"></div>
+          <div id="vp-status" style="margin-top:4px"></div>
+        </div>
+        <div id="vp-compat-wrap" style="padding-bottom:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px">
+          <div style="font-size:10px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🎓 Offers</div>
+          <div id="vp-offered"></div>
+        </div>
+        <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px">
+          <div style="font-size:10px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔍 Wants</div>
+          <div id="vp-wanted"></div>
+        </div>
+      </div>
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px;margin-bottom:16px">
+        <div style="font-size:10px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🕐 Availability</div>
+        <div id="vp-avail"></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px">
+        <div>
+          <div style="font-size:10px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.5px">⭐ Reputation</div>
+          <div id="vp-rep" style="font-size:22px;font-weight:900;color:var(--a);letter-spacing:-1px;margin-top:2px"></div>
+        </div>
+        <div id="vp-badges"></div>
+      </div>
+      <div id="vp-actions" style="display:flex;gap:8px;justify-content:flex-end"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Incoming Request -->
 <div id="mIncoming" class="moverlay hidden">
   <div class="mbox" style="text-align:center">
@@ -1923,6 +1965,7 @@ function mkMatchCard(u){
           ? `<span class="pend-badge">⏳ SYN Sent</span>`
           : `<button class="btn btn-sec btn-sm" onclick="openConnModal('${escHtml(u.username)}')">🤝 Connect (SYN)</button>`
       }
+      <button class="btn btn-sec btn-sm" onclick="openViewProfile('${escHtml(u.username)}')">👤 Profile</button>
     </div>`;
   // Load real profile photo asynchronously
   if(typeof getAvatarUrl === 'function') {
@@ -2570,6 +2613,99 @@ function logout(){
 }
 
 /* ─── MODALS ─── */
+function openViewProfile(username) {
+  // Find user data from allUsers or storedMatchList
+  let u = allUsers.find(x => x.username === username);
+  if (!u) {
+    const m = storedMatchList.find(x => x.partner === username);
+    if (m) u = { username: m.partner, name: m.partner_name||m.partner, offered: m.offered||[], wanted: m.wanted||[], availability: m.availability||[], reputation: m.reputation||10 };
+  }
+  if (!u) { toast('User data not available', 'err'); return; }
+
+  const score     = CU ? compat(CU, u) : 0;
+  const isOnline  = allUsers.some(x => x.username === username);
+  const connected = isConnected(username);
+  const pendSent  = hasPendingSent(username);
+  const [bg, cl]  = avColor(username);
+  const initials  = (u.name||username).split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+
+  // Banner gradient based on score
+  const banner = document.getElementById('vp-banner');
+  if (banner) banner.style.background = score>=70
+    ? 'linear-gradient(135deg,var(--a4),var(--a2))'
+    : score>=40 ? 'linear-gradient(135deg,var(--a),var(--a2))'
+    : 'linear-gradient(135deg,var(--a3),var(--warn))';
+
+  // Photo
+  const photoWrap = document.getElementById('vp-photo-wrap');
+  if (photoWrap) {
+    photoWrap.innerHTML = `<div style="width:72px;height:72px;border-radius:50%;background:${bg};color:${cl};display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800">${initials}</div>`;
+    if (typeof getAvatarUrl === 'function') {
+      getAvatarUrl(username).then(url => {
+        if (url) photoWrap.innerHTML = `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover" alt="${username}" onerror="this.outerHTML='<div style=width:72px;height:72px;border-radius:50%;background:${bg};color:${cl};display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800>${initials}</div>'"/>`;
+      });
+    }
+  }
+
+  // Name / handle / status
+  const vpName = document.getElementById('vp-name');
+  if (vpName) vpName.textContent = u.name || username;
+  const vpHandle = document.getElementById('vp-handle');
+  if (vpHandle) vpHandle.textContent = '@' + username;
+  const vpStatus = document.getElementById('vp-status');
+  if (vpStatus) vpStatus.innerHTML = isOnline
+    ? `<span style="font-size:11px;font-weight:600;color:var(--a4);background:rgba(0,229,160,.1);padding:2px 8px;border-radius:20px">● Online</span>`
+    : `<span style="font-size:11px;font-weight:600;color:var(--txt3);background:var(--surf);padding:2px 8px;border-radius:20px">○ Offline</span>`;
+
+  // Compat ring
+  const circ = 2*Math.PI*22, off = circ*(1-score/100);
+  const col  = score>=70?'var(--a4)':score>=40?'var(--a)':'var(--a3)';
+  const vpCompat = document.getElementById('vp-compat-wrap');
+  if (vpCompat) vpCompat.innerHTML = `
+    <div style="position:relative;width:54px;height:54px">
+      <svg width="54" height="54" viewBox="0 0 54 54" style="transform:rotate(-90deg)">
+        <circle fill="none" stroke="var(--bdr)" stroke-width="4" cx="27" cy="27" r="22"/>
+        <circle fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" cx="27" cy="27" r="22"
+          stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:${col};font-family:var(--mono);line-height:1.1">
+        ${score}%<span style="font-size:8px;color:var(--txt3);font-family:var(--font)">match</span>
+      </div>
+    </div>`;
+
+  // Skills
+  const vpOff = document.getElementById('vp-offered');
+  if (vpOff) vpOff.innerHTML = (u.offered||[]).map(s=>`<span class="stag stag-off">${escHtml(s)}</span>`).join('') || '<span style="color:var(--txt3);font-size:12px">None listed</span>';
+  const vpWant = document.getElementById('vp-wanted');
+  if (vpWant) vpWant.innerHTML = (u.wanted||[]).map(s=>`<span class="stag stag-want">${escHtml(s)}</span>`).join('') || '<span style="color:var(--txt3);font-size:12px">None listed</span>';
+  const vpAvail = document.getElementById('vp-avail');
+  if (vpAvail) vpAvail.innerHTML = (u.availability||[]).map(d=>`<span class="stag stag-n">${escHtml(d)}</span>`).join('') || '<span style="color:var(--txt3);font-size:12px">Not specified</span>';
+
+  // Reputation & badges
+  const vpRep = document.getElementById('vp-rep');
+  if (vpRep) vpRep.textContent = u.reputation || 10;
+  const vpBadges = document.getElementById('vp-badges');
+  if (vpBadges) vpBadges.innerHTML = (u.badges||[]).map(b=>`<span class="badge">${escHtml(b)}</span>`).join('');
+
+  // Actions
+  const vpActions = document.getElementById('vp-actions');
+  if (vpActions) {
+    if (connected) {
+      vpActions.innerHTML = `
+        <span class="conn-badge">✓ Connected</span>
+        <button class="btn btn-pri" onclick="closeModal('mViewProfile');openChat('${escHtml(username)}')">💬 Chat</button>`;
+    } else if (pendSent) {
+      vpActions.innerHTML = `<span class="pend-badge">⏳ Request Sent</span>`;
+    } else {
+      vpActions.innerHTML = `
+        <button class="btn btn-sec" onclick="closeModal('mViewProfile')">Close</button>
+        <button class="btn btn-pri" onclick="closeModal('mViewProfile');openConnModal('${escHtml(username)}')">🤝 Connect</button>`;
+    }
+  }
+
+  document.getElementById('mViewProfile').classList.remove('hidden');
+}
+
 function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
 
 /* ─── HELPERS ─── */
