@@ -6,6 +6,7 @@
 <title>SkillSync — Peer Skill Exchange Network</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* ═══════════════════════════════════════════════
    DESIGN TOKENS
@@ -541,6 +542,69 @@ footer{
 .chat-inp-row{padding:12px 16px;border-top:1px solid var(--bdr);display:flex;gap:8px;align-items:center}
 .chat-inp-row .inp{flex:1;padding:8px 12px;font-size:13px}
 
+/* ── AVATAR UPLOAD ── */
+.av-upload-wrap{position:relative;width:96px;height:96px;margin:0 auto 8px;cursor:pointer}
+.av-upload-wrap:hover .av-photo-overlay{opacity:1}
+.av-upload-wrap input[type=file]{display:none}
+.prof-photo{
+  width:96px;height:96px;border-radius:50%;object-fit:cover;
+  border:3px solid var(--bdr2);display:block;
+  box-shadow:0 4px 20px rgba(0,0,0,.3);
+}
+.prof-photo-placeholder{
+  width:96px;height:96px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;font-weight:800;border:3px solid var(--bdr2);
+  box-shadow:0 4px 20px rgba(0,0,0,.3);
+}
+.av-photo-overlay{
+  position:absolute;inset:0;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .2s;
+  background:rgba(0,0,0,.55);font-size:22px;
+  pointer-events:none;
+}
+.av-uploading{opacity:.5;pointer-events:none}
+.av-sm-img{width:34px;height:34px;border-radius:50%;object-fit:cover}
+.av-md-img{width:42px;height:42px;border-radius:50%;object-fit:cover}
+.mc-av-img{width:52px;height:52px;border-radius:14px;object-fit:cover;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+
+/* ── FILE / IMAGE MESSAGES ── */
+.file-bubble{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:12px;
+  background:var(--surf2);border:1px solid var(--bdr2);
+  max-width:280px;cursor:pointer;transition:background .2s;
+  text-decoration:none;color:inherit;
+}
+.file-bubble:hover{background:var(--surf3)}
+.file-icon{font-size:22px;flex-shrink:0}
+.file-info{overflow:hidden}
+.file-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-size{font-size:10px;color:var(--txt2)}
+.img-bubble{max-width:240px;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--bdr)}
+.img-bubble img{width:100%;display:block;transition:opacity .2s}
+.img-bubble img:hover{opacity:.85}
+.file-attach-btn{
+  width:34px;height:34px;border-radius:9px;border:1px solid var(--bdr2);
+  background:var(--surf);color:var(--txt2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  transition:all .2s;flex-shrink:0;
+}
+.file-attach-btn:hover{background:var(--surf2);color:var(--a)}
+.upload-progress{
+  font-size:11px;color:var(--a2);padding:4px 8px;
+  background:var(--a2-dim);border-radius:6px;
+}
+
+/* ── IMAGE LIGHTBOX ── */
+#imgLightbox{
+  position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.85);
+  display:flex;align-items:center;justify-content:center;cursor:zoom-out;
+  backdrop-filter:blur(8px);
+}
+#imgLightbox img{max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+
 /* ── PROFILE ── */
 .prof-layout{display:grid;grid-template-columns:270px 1fr;gap:20px}
 .prof-card{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);padding:24px;text-align:center}
@@ -990,7 +1054,12 @@ footer{
         <div class="prof-layout">
           <div>
             <div class="prof-card">
-              <div class="av av-lg" id="profAv" style="background:var(--a-dim);color:var(--a);margin:0 auto"></div>
+              <div class="av-upload-wrap" onclick="document.getElementById('avatarFileInput').click()" title="Click to change photo">
+                <div id="profPhotoWrap"></div>
+                <div class="av-photo-overlay">📷 Change</div>
+                <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp,image/gif" onchange="uploadAvatar(event)"/>
+              </div>
+              <div style="text-align:center;font-size:11px;color:var(--txt2);margin-bottom:12px" id="avUploadStatus">📷 Click to upload photo</div>
               <div class="prof-name" id="profName">—</div>
               <div class="prof-email" id="profEmail">—</div>
               <div class="badge-row" id="profBadges"></div>
@@ -1976,6 +2045,8 @@ async function renderChatWindow(partner){
     </div>
     <div class="chat-msgs" id="chatMsgs"><div class="chat-empty-state"><div class="big">⏳</div><p>Loading messages…</p></div></div>
     <div class="chat-inp-row">
+      <button class="file-attach-btn" onclick="document.getElementById('chatFileInput').click()" title="Send file or image">📎</button>
+      <input type="file" id="chatFileInput" style="display:none" accept="image/*,.pdf,.doc,.docx,.txt,.zip" onchange="sendFile(event)"/>
       <input type="text" class="inp" id="chatInp" placeholder="Type a message… (Enter to send)" autocomplete="off"/>
       <button class="btn btn-pri btn-sm" onclick="sendMsg()">Send</button>
     </div>`;
@@ -2463,6 +2534,232 @@ document.querySelectorAll('.moverlay').forEach(m=>{
 
 /* ─── INIT ─── */
 window.addEventListener('DOMContentLoaded', initPage);
+</script>
+
+<!-- ── IMAGE LIGHTBOX ── -->
+<div id="imgLightbox" class="hidden" onclick="this.classList.add('hidden')">
+  <img id="imgLightboxImg" src="" alt=""/>
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   SUPABASE STORAGE — Profile Photos & File Share
+   ════════════════════════════════════════════ */
+const SUPA_URL = 'https://txruejsmhhfqjzylbkll.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4cnVlanNtaGhmcWp6eWxia2xsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNTY0OTgsImV4cCI6MjA4NzgzMjQ5OH0.CqQZFdd-xAhxC8Q6JEWB_O8h_bkdX01NrtDA5YWmAys';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const avatarCache = {};
+
+async function getAvatarUrl(username) {
+  if (avatarCache[username] !== undefined) return avatarCache[username];
+  try {
+    const { data } = supa.storage.from('avatars').getPublicUrl(username + '/avatar');
+    const check = await fetch(data.publicUrl + '?t=1', { method: 'HEAD' });
+    if (check.ok) {
+      avatarCache[username] = data.publicUrl;
+      return data.publicUrl;
+    }
+  } catch(e) {}
+  avatarCache[username] = null;
+  return null;
+}
+
+function renderProfilePhoto(username, name, containerId) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  const [bg, cl] = avColor(username);
+  const initials = (name || username).split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+  wrap.innerHTML = `<div class="prof-photo-placeholder" style="background:${bg};color:${cl}">${initials}</div>`;
+  getAvatarUrl(username).then(url => {
+    if (!url) return;
+    wrap.innerHTML = `<img src="${url}?cb=${Date.now()}" class="prof-photo" alt="${username}"
+      onerror="this.outerHTML='<div class=prof-photo-placeholder style=background:${bg};color:${cl}>${initials}</div>'"/>`;
+  });
+}
+
+async function uploadAvatar(event) {
+  const file = event.target.files[0];
+  if (!file || !CU) return;
+  if (file.size > 5 * 1024 * 1024) { toast('Image must be under 5MB', 'err'); return; }
+
+  const status = document.getElementById('avUploadStatus');
+  const wrap   = document.querySelector('.av-upload-wrap');
+  if (status) status.textContent = '⏳ Uploading…';
+  if (wrap)   wrap.classList.add('av-uploading');
+
+  try {
+    const { error } = await supa.storage.from('avatars').upload(
+      CU.username + '/avatar', file, { upsert: true, contentType: file.type }
+    );
+    if (error) throw error;
+
+    delete avatarCache[CU.username];
+    renderProfilePhoto(CU.username, CU.name || CU.username, 'profPhotoWrap');
+    if (status) status.textContent = '✅ Photo updated!';
+    toast('Profile photo updated! 🎉', 'ok');
+    renderMatches();
+  } catch(e) {
+    if (status) status.textContent = '❌ Upload failed — try again';
+    toast('Upload failed: ' + (e.message || e), 'err');
+  } finally {
+    if (wrap) wrap.classList.remove('av-uploading');
+    event.target.value = '';
+  }
+}
+
+/* Patch renderProfile to show real photo */
+const _origRenderProfile = renderProfile;
+function renderProfile() {
+  _origRenderProfile();
+  if (!CU) return;
+  renderProfilePhoto(CU.username, CU.name || CU.username, 'profPhotoWrap');
+}
+
+/* Patch mkMatchCard to show real photo on match cards */
+const _origMkMatchCard = mkMatchCard;
+function mkMatchCard(u) {
+  const card = _origMkMatchCard(u);
+  getAvatarUrl(u.username).then(url => {
+    if (!url) return;
+    const avEl = card.querySelector('.mc-av');
+    if (!avEl) return;
+    const initials = (u.name || u.username).split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+    avEl.innerHTML = `<img src="${url}" class="mc-av-img" alt="${u.username}"
+      onerror="this.parentElement.textContent='${initials}'"/>`;
+  });
+  return card;
+}
+
+/* ════════════════════════════════════════════
+   FILE / IMAGE SHARING IN CHAT
+   ════════════════════════════════════════════ */
+const IMAGE_TYPES = ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml'];
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function fileIcon(type) {
+  if (IMAGE_TYPES.includes(type)) return '🖼️';
+  if (type === 'application/pdf') return '📄';
+  if (type.includes('word') || type.includes('doc')) return '📝';
+  if (type.includes('zip') || type.includes('archive')) return '🗜️';
+  return '📁';
+}
+
+async function sendFile(event) {
+  const file = event.target.files[0];
+  if (!file || !CU || !activeChatPartner) {
+    toast('Open a chat first!', 'err');
+    event.target.value = '';
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) { toast('File must be under 20MB', 'err'); return; }
+
+  const room     = roomFor(activeChatPartner);
+  const isImage  = IMAGE_TYPES.includes(file.type);
+  const ts       = Date.now();
+  const path     = `${room}/${ts}_${file.name}`;
+
+  // Show uploading indicator in chat
+  const box = document.getElementById('chatMsgs');
+  const progRow = document.createElement('div');
+  progRow.className = 'msg-row';
+  progRow.innerHTML = `<div class="bubble mine"><span class="upload-progress">⏫ Uploading ${escHtml(file.name)}…</span></div>`;
+  if (box) box.appendChild(progRow);
+  if (box) box.scrollTop = box.scrollHeight;
+
+  try {
+    const { error } = await supa.storage.from('chat-files').upload(path, file, {
+      upsert: false,
+      contentType: file.type,
+    });
+    if (error) throw error;
+
+    const { data } = supa.storage.from('chat-files').getPublicUrl(path);
+    const fileUrl  = data.publicUrl;
+
+    // Remove uploading indicator
+    if (progRow.parentNode) progRow.parentNode.removeChild(progRow);
+
+    // Build message payload — prefix with special marker so receiver can render it
+    const msgPayload = isImage
+      ? `__IMG__${fileUrl}||${escHtml(file.name)}`
+      : `__FILE__${fileUrl}||${escHtml(file.name)}||${formatBytes(file.size)}||${file.type}`;
+
+    socket.emit('send_message', { room, username: CU.username, message: msgPayload });
+    if (!chats[activeChatPartner]) chats[activeChatPartner] = [];
+    chats[activeChatPartner].push({ sender: CU.username, msg: msgPayload, time: nowStr() });
+    appendBubble(CU.username, msgPayload, true);
+    updateChatListItem(activeChatPartner);
+
+  } catch(e) {
+    if (progRow.parentNode) progRow.parentNode.removeChild(progRow);
+    toast('File upload failed: ' + (e.message || e), 'err');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+/* Patch appendBubble to render file/image messages */
+const _origAppendBubble = appendBubble;
+function appendBubble(sender, msg, isMine, scroll=true) {
+  if (msg && msg.startsWith('__IMG__')) {
+    const [url, name] = msg.replace('__IMG__','').split('||');
+    const box = document.getElementById('chatMsgs');
+    if (!box) return;
+    const empty = box.querySelector('.chat-empty-state');
+    if (empty) empty.remove();
+    const row = document.createElement('div');
+    row.className = 'msg-row';
+    row.innerHTML = `
+      <div class="img-bubble ${isMine?'mine':'theirs'}" style="margin-left:${isMine?'auto':'0'};margin-right:${isMine?'0':'auto'}">
+        <img src="${url}" alt="${name||'image'}" loading="lazy" onclick="openLightbox('${url}')"/>
+      </div>
+      <div class="msg-meta ${isMine?'mine':'theirs'}">
+        ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
+        ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
+      </div>`;
+    box.appendChild(row);
+    if (scroll) box.scrollTop = box.scrollHeight;
+    return;
+  }
+  if (msg && msg.startsWith('__FILE__')) {
+    const parts = msg.replace('__FILE__','').split('||');
+    const [url, name, size, type] = parts;
+    const box = document.getElementById('chatMsgs');
+    if (!box) return;
+    const empty = box.querySelector('.chat-empty-state');
+    if (empty) empty.remove();
+    const row = document.createElement('div');
+    row.className = 'msg-row';
+    row.innerHTML = `
+      <a href="${url}" target="_blank" rel="noopener" class="file-bubble ${isMine?'mine':'theirs'}" style="margin-left:${isMine?'auto':'0'}">
+        <div class="file-icon">${fileIcon(type||'')}</div>
+        <div class="file-info">
+          <div class="file-name">${escHtml(name||'File')}</div>
+          <div class="file-size">${escHtml(size||'')} · tap to download</div>
+        </div>
+      </a>
+      <div class="msg-meta ${isMine?'mine':'theirs'}">
+        ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
+        ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
+      </div>`;
+    box.appendChild(row);
+    if (scroll) box.scrollTop = box.scrollHeight;
+    return;
+  }
+  _origAppendBubble(sender, msg, isMine, scroll);
+}
+
+function openLightbox(url) {
+  const lb  = document.getElementById('imgLightbox');
+  const img = document.getElementById('imgLightboxImg');
+  if (lb && img) { img.src = url; lb.classList.remove('hidden'); }
+}
 </script>
 </body>
 </html>
