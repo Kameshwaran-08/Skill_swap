@@ -1,0 +1,2468 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SkillSync — Peer Skill Exchange Network</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════ */
+:root {
+  --bg:#07080f;--bg2:#0d0f1d;--bg3:#111428;--bg4:#161a30;
+  --surf:rgba(255,255,255,.045);--surf2:rgba(255,255,255,.08);--surf3:rgba(255,255,255,.12);
+  --bdr:rgba(255,255,255,.08);--bdr2:rgba(255,255,255,.14);
+  --txt:#e2e8ff;--txt2:#8892b0;--txt3:#4a5278;
+  --a:#7c6eff;--a2:#00d4ff;--a3:#ff6b9d;--a4:#00e5a0;
+  --a-dim:rgba(124,110,255,.18);--a2-dim:rgba(0,212,255,.15);
+  --glow:rgba(124,110,255,.5);--glow2:rgba(0,212,255,.35);
+  --warn:#ffa040;--err:#ff4d6d;
+  --r:12px;--r2:18px;--r3:24px;
+  --shd:0 8px 40px rgba(0,0,0,.55);
+  --font:'Outfit',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --nav-h:60px;
+}
+[data-theme=light]{
+  --bg:#f0f2ff;--bg2:#e8ebff;--bg3:#fff;--bg4:#f5f7ff;
+  --surf:rgba(255,255,255,.7);--surf2:rgba(255,255,255,.9);--surf3:rgba(255,255,255,1);
+  --bdr:rgba(0,0,0,.08);--bdr2:rgba(0,0,0,.14);
+  --txt:#0d0f1d;--txt2:#4a5278;--txt3:#8892b0;
+  --a:#5b4ddd;--a2:#0369a1;--a3:#be185d;--a4:#059669;
+  --a-dim:rgba(91,77,221,.1);--a2-dim:rgba(3,105,161,.1);
+  --glow:rgba(91,77,221,.2);--glow2:rgba(3,105,161,.15);
+  --shd:0 8px 40px rgba(0,0,0,.1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;transition:background .3s,color .3s}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--a);border-radius:4px}
+
+/* ── UTILITIES ── */
+.hidden{display:none!important}
+.page{display:none!important;position:relative;z-index:1}
+.page.active{display:block!important}
+#page-login.active,#page-signup.active{display:flex!important}
+.mono{font-family:var(--mono)}
+
+/* ── MESH CANVAS ── */
+#meshBg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.3}
+
+/* ── NAVBAR ── */
+#nav{
+  position:fixed;inset:0 0 auto;z-index:300;
+  height:var(--nav-h);display:flex;align-items:center;justify-content:space-between;
+  padding:0 36px;
+  background:rgba(7,8,15,.8);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--bdr);
+  transition:background .3s;
+}
+[data-theme=light] #nav{background:rgba(240,242,255,.85)}
+.nav-logo{
+  font-family:var(--font);font-size:20px;font-weight:800;cursor:pointer;
+  background:linear-gradient(135deg,var(--a),var(--a2));
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:-0.5px;
+}
+.nav-links{list-style:none;display:flex;gap:4px}
+.nav-links a{
+  color:var(--txt2);font-size:13px;font-weight:500;cursor:pointer;
+  text-decoration:none;padding:6px 12px;border-radius:8px;transition:all .2s;
+}
+.nav-links a:hover{color:var(--txt);background:var(--surf2)}
+.nav-r{display:flex;align-items:center;gap:8px}
+.nbtn{
+  padding:7px 16px;border-radius:9px;font-size:13px;font-weight:600;
+  font-family:var(--font);cursor:pointer;border:none;transition:all .2s;
+}
+.nbtn-ghost{background:transparent;color:var(--txt);border:1px solid var(--bdr2)}
+.nbtn-ghost:hover{background:var(--surf2)}
+.nbtn-pri{background:var(--a);color:#fff;box-shadow:0 0 20px var(--glow)}
+.nbtn-pri:hover{transform:translateY(-1px);box-shadow:0 0 30px var(--glow)}
+.icon-btn{
+  width:36px;height:36px;border-radius:9px;background:var(--surf);border:1px solid var(--bdr);
+  color:var(--txt2);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:14px;transition:all .2s;position:relative;
+}
+.icon-btn:hover{background:var(--surf2);color:var(--txt)}
+.notif-pill{
+  position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;
+  background:var(--a3);color:#fff;font-size:9px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;padding:0 3px;
+}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 20px;border-radius:10px;font-size:13px;font-weight:600;
+  font-family:var(--font);cursor:pointer;border:none;transition:all .22s;
+}
+.btn:disabled{opacity:.4;cursor:not-allowed!important;transform:none!important}
+.btn-pri{background:var(--a);color:#fff;box-shadow:0 0 18px var(--glow)}
+.btn-pri:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 0 28px var(--glow)}
+.btn-sec{background:var(--surf);color:var(--txt);border:1px solid var(--bdr2)}
+.btn-sec:hover:not(:disabled){background:var(--surf2)}
+.btn-grn{background:var(--a4);color:#000;font-weight:700}
+.btn-grn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 0 18px rgba(0,229,160,.45)}
+.btn-red{background:rgba(255,77,109,.12);color:var(--err);border:1px solid rgba(255,77,109,.25)}
+.btn-sm{padding:6px 13px;font-size:12px;border-radius:8px}
+
+/* ── INPUTS ── */
+.ig{margin-bottom:13px}
+.ig label{display:block;font-size:11px;font-weight:600;color:var(--txt2);margin-bottom:5px;letter-spacing:.4px;text-transform:uppercase}
+.inp{
+  width:100%;padding:10px 13px;border-radius:9px;
+  background:var(--surf);border:1px solid var(--bdr2);
+  color:var(--txt);font-family:var(--font);font-size:13px;
+  outline:none;transition:all .2s;
+}
+.inp:focus{border-color:var(--a);box-shadow:0 0 0 3px var(--a-dim)}
+.inp::placeholder{color:var(--txt3)}
+.form-err{
+  background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.25);
+  border-radius:9px;padding:9px 13px;font-size:12px;color:var(--err);
+  margin-bottom:13px;display:none;
+}
+
+/* ── CARDS ── */
+.card{
+  background:var(--surf);backdrop-filter:blur(16px);
+  border:1px solid var(--bdr);border-radius:var(--r2);padding:22px;
+  transition:all .25s;
+}
+
+/* ── TOAST ── */
+#toasts{position:fixed;top:70px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast{
+  padding:10px 15px;border-radius:10px;font-size:12px;font-weight:600;
+  max-width:280px;display:flex;align-items:center;gap:8px;pointer-events:auto;
+  box-shadow:var(--shd);animation:tIn .3s ease,tOut .3s ease 3.7s forwards;
+}
+.t-ok{background:var(--a4);color:#000}
+.t-err{background:var(--err);color:#fff}
+.t-inf{background:var(--a);color:#fff}
+@keyframes tIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes tOut{to{transform:translateX(110%);opacity:0}}
+
+/* ── MATCH NOTIFICATION CARD ── */
+#matchNotif{
+  position:fixed;
+  bottom:24px;right:24px;
+  z-index:9000;
+  width:340px;
+  background:var(--bg2);
+  border:1px solid rgba(124,110,255,.4);
+  border-radius:var(--r3);
+  padding:20px;
+  box-shadow:0 0 0 1px rgba(124,110,255,.12), 0 20px 60px rgba(0,0,0,.6), 0 0 40px rgba(124,110,255,.15);
+  transform:translateY(120%) scale(.96);
+  opacity:0;
+  transition:transform .45s cubic-bezier(.34,1.56,.64,1), opacity .35s ease;
+  pointer-events:none;
+}
+#matchNotif.show{
+  transform:translateY(0) scale(1);
+  opacity:1;
+  pointer-events:auto;
+}
+.mn-glow-bar{
+  position:absolute;top:0;left:0;right:0;height:2px;border-radius:var(--r3) var(--r3) 0 0;
+  background:linear-gradient(90deg,var(--a),var(--a2),var(--a4));
+}
+.mn-header{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+}
+.mn-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 10px;border-radius:20px;
+  background:linear-gradient(135deg,rgba(124,110,255,.2),rgba(0,212,255,.15));
+  border:1px solid rgba(124,110,255,.3);
+  font-size:10px;font-weight:800;color:var(--a);
+  letter-spacing:.6px;text-transform:uppercase;font-family:var(--mono);
+}
+.mn-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--a4);animation:pulse 1.8s infinite}
+.mn-close{
+  width:24px;height:24px;border-radius:6px;
+  background:var(--surf2);border:none;color:var(--txt2);
+  cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;
+  transition:all .18s;flex-shrink:0;
+}
+.mn-close:hover{background:var(--surf3);color:var(--txt)}
+.mn-body{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.mn-av{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:800;flex-shrink:0;
+  position:relative;
+}
+.mn-av::after{
+  content:'';position:absolute;inset:-3px;border-radius:50%;
+  background:conic-gradient(var(--a),var(--a2),var(--a4),var(--a));
+  z-index:-1;
+  animation:spin 3s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mn-av-inner{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:800;
+  position:relative;z-index:1;
+}
+.mn-info{flex:1;min-width:0}
+.mn-title{font-size:15px;font-weight:800;letter-spacing:-.3px;margin-bottom:2px}
+.mn-title span{
+  background:linear-gradient(135deg,var(--a),var(--a2));
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.mn-sub{font-size:12px;color:var(--txt2);margin-bottom:6px}
+.mn-compat{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:11px;font-weight:700;color:var(--a4);
+}
+.mn-compat-bar{
+  width:60px;height:4px;background:var(--bdr);border-radius:2px;overflow:hidden;
+}
+.mn-compat-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--a),var(--a4));
+  transition:width .8s ease .3s;
+}
+.mn-skills{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:14px}
+.mn-actions{display:flex;gap:7px}
+.mn-actions .btn{flex:1;justify-content:center;font-size:12px;padding:8px 12px}
+
+/* ── MODAL ── */
+.moverlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.mbox{
+  background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r3);
+  padding:30px;width:100%;max-width:440px;position:relative;
+  animation:mIn .25s ease;
+}
+.mbox-wide{max-width:520px}
+@keyframes mIn{from{transform:scale(.92) translateY(8px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.mclose{
+  position:absolute;top:14px;right:14px;width:28px;height:28px;
+  border-radius:7px;background:var(--surf2);border:none;
+  color:var(--txt2);cursor:pointer;font-size:13px;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+.mclose:hover{background:var(--surf3);color:var(--txt)}
+.mh{font-size:18px;font-weight:800;margin-bottom:6px;letter-spacing:-.4px}
+.msub{color:var(--txt2);font-size:13px;margin-bottom:22px;line-height:1.5}
+
+/* ── SKILL TAGS ── */
+.stag{
+  display:inline-block;padding:3px 9px;border-radius:20px;
+  font-size:11px;font-weight:600;margin:2px;letter-spacing:.2px;
+}
+.stag-off{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--a4)}
+.stag-want{background:var(--a-dim);border:1px solid rgba(124,110,255,.3);color:var(--a)}
+.stag-n{background:var(--surf2);border:1px solid var(--bdr);color:var(--txt2)}
+
+/* ── AVATAR ── */
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.av-sm{width:34px;height:34px;font-size:13px}
+.av-md{width:42px;height:42px;font-size:16px}
+.av-lg{width:66px;height:66px;font-size:22px}
+
+/* ── DAY GRID ── */
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:4px}
+.day-btn{
+  padding:7px 0;border-radius:7px;border:1px solid var(--bdr);
+  background:var(--surf);color:var(--txt2);cursor:pointer;
+  font-size:11px;font-weight:600;text-align:center;
+  transition:all .18s;font-family:var(--font);
+}
+.day-btn.on{background:var(--a);color:#fff;border-color:var(--a)}
+
+/* ═══════════════════════════════════════════════
+   HOME PAGE
+═══════════════════════════════════════════════ */
+#page-home{padding-top:var(--nav-h)}
+
+/* Hero */
+.hero{
+  min-height:calc(100vh - var(--nav-h));
+  display:flex;align-items:center;padding:72px 72px 60px;gap:64px;overflow:hidden;
+}
+.hero-copy{flex:1;max-width:560px;z-index:2}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;
+  background:var(--a-dim);border:1px solid rgba(124,110,255,.3);
+  font-size:11px;font-weight:700;color:var(--a);letter-spacing:.6px;
+  margin-bottom:22px;text-transform:uppercase;
+}
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--a);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.6)}}
+.hero h1{
+  font-size:clamp(2.8rem,4.5vw,4.2rem);font-weight:900;
+  line-height:1.05;letter-spacing:-2px;margin-bottom:20px;
+}
+.hero h1 .grad{
+  background:linear-gradient(135deg,var(--a) 0%,var(--a2) 60%,var(--a4) 100%);
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{font-size:15px;color:var(--txt2);line-height:1.8;margin-bottom:30px;max-width:460px}
+.hero-cta{display:flex;gap:10px;flex-wrap:wrap}
+.hero-stats{display:flex;gap:32px;margin-top:48px}
+.hstat .n{font-family:var(--font);font-size:30px;font-weight:900;color:var(--a);letter-spacing:-1px}
+.hstat .l{font-size:11px;color:var(--txt2);letter-spacing:.3px;margin-top:2px}
+
+/* Hero visual — network topology */
+.hero-vis{
+  flex:1;display:flex;justify-content:center;align-items:center;
+  position:relative;min-height:500px;z-index:2;
+}
+.net-canvas-wrap{position:relative;width:420px;height:420px}
+#heroNet{width:100%;height:100%}
+
+/* ── CN CONCEPT BADGE ── */
+.cn-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;
+  background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);
+  color:var(--a2);letter-spacing:.4px;text-transform:uppercase;font-family:var(--mono);
+}
+
+/* Features section */
+.section{padding:80px 72px;position:relative;z-index:1}
+.sec-tag{
+  display:inline-block;padding:3px 10px;border-radius:20px;
+  font-size:10px;font-weight:700;letter-spacing:.6px;
+  background:var(--surf2);border:1px solid var(--bdr);color:var(--a2);
+  text-transform:uppercase;font-family:var(--mono);margin-bottom:12px;
+}
+.sec-title{font-size:clamp(1.9rem,3vw,2.7rem);font-weight:900;letter-spacing:-1.2px;margin-bottom:12px}
+.sec-sub{color:var(--txt2);font-size:14px;margin-bottom:52px;max-width:520px;line-height:1.7}
+
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}
+.feat-card{
+  background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);
+  padding:24px;transition:all .28s;cursor:default;position:relative;overflow:hidden;
+}
+.feat-card::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;
+  background:linear-gradient(135deg,transparent 60%,rgba(124,110,255,.06));
+  pointer-events:none;
+}
+.feat-card:hover{
+  transform:translateY(-4px);border-color:rgba(124,110,255,.3);
+  box-shadow:0 16px 44px rgba(124,110,255,.12);
+}
+.feat-icon{
+  width:46px;height:46px;border-radius:12px;display:flex;align-items:center;
+  justify-content:center;font-size:20px;margin-bottom:14px;
+}
+.feat-card h3{font-size:15px;font-weight:700;margin-bottom:8px}
+.feat-card p{font-size:13px;color:var(--txt2);line-height:1.65}
+.feat-cn{margin-top:12px}
+
+/* Timeline */
+.sec-alt{background:var(--bg2)}
+.timeline{position:relative;max-width:640px;margin:0 auto}
+.timeline::before{
+  content:'';position:absolute;left:33px;top:18px;bottom:18px;width:2px;
+  background:linear-gradient(to bottom,var(--a),var(--a2),transparent);
+}
+.step{display:flex;gap:22px;margin-bottom:34px;align-items:flex-start}
+.step-n{
+  width:66px;height:66px;border-radius:50%;flex-shrink:0;
+  background:var(--bg3);border:2px solid var(--a);z-index:1;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:16px;font-weight:700;color:var(--a);
+  box-shadow:0 0 18px var(--glow);
+}
+.step-c h3{font-size:16px;font-weight:700;margin-bottom:6px;padding-top:18px}
+.step-c p{font-size:13px;color:var(--txt2);line-height:1.65}
+
+/* CTA section */
+.cta-sec{
+  text-align:center;padding:80px 72px;
+  background:linear-gradient(135deg,rgba(124,110,255,.08),rgba(0,212,255,.04));
+  border-top:1px solid var(--bdr);
+}
+.cta-sec h2{font-size:2.5rem;font-weight:900;margin-bottom:12px;letter-spacing:-1px}
+.cta-sec p{color:var(--txt2);margin-bottom:28px;font-size:14px}
+
+footer{
+  padding:24px 72px;border-top:1px solid var(--bdr);
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;color:var(--txt2);
+}
+.f-logo{font-weight:800;color:var(--a)}
+
+/* ═══════════════════════════════════════════════
+   AUTH PAGES
+═══════════════════════════════════════════════ */
+#page-login,#page-signup{
+  padding-top:var(--nav-h);min-height:100vh;
+  display:flex;align-items:center;justify-content:center;padding:90px 20px;
+}
+.auth-box{
+  background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r3);
+  padding:38px;width:100%;max-width:460px;box-shadow:0 0 60px rgba(124,110,255,.08);
+  max-height:90vh;overflow-y:auto;
+}
+.auth-box h2{font-size:22px;font-weight:800;margin-bottom:4px;letter-spacing:-.5px}
+.auth-box .sub{color:var(--txt2);font-size:13px;margin-bottom:24px;line-height:1.6}
+.auth-link{font-size:12px;color:var(--txt2);text-align:center;margin-top:16px}
+.auth-link a{color:var(--a);cursor:pointer;font-weight:600}
+.auth-link a:hover{text-decoration:underline}
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD LAYOUT
+═══════════════════════════════════════════════ */
+#page-dashboard{padding-top:var(--nav-h);min-height:100vh}
+.app-wrap{display:flex;min-height:calc(100vh - var(--nav-h))}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:242px;background:var(--bg2);border-right:1px solid var(--bdr);
+  padding:18px 12px;flex-shrink:0;position:sticky;top:var(--nav-h);
+  height:calc(100vh - var(--nav-h));display:flex;flex-direction:column;overflow-y:auto;
+}
+.sb-user{
+  display:flex;align-items:center;gap:10px;padding:10px;
+  background:var(--surf);border-radius:11px;margin-bottom:18px;
+  cursor:pointer;border:1px solid var(--bdr);transition:background .2s;
+}
+.sb-user:hover{background:var(--surf2)}
+.sb-info{flex:1;overflow:hidden}
+.sb-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-rep{font-size:11px;color:var(--txt2)}
+.online-dot{width:7px;height:7px;border-radius:50%;background:var(--a4);box-shadow:0 0 5px var(--a4);flex-shrink:0}
+.sb-menu{list-style:none;flex:1}
+.sb-menu li{margin-bottom:1px}
+.sb-menu a{
+  display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;
+  color:var(--txt2);text-decoration:none;font-size:13px;font-weight:500;
+  transition:all .18s;cursor:pointer;border:1px solid transparent;
+}
+.sb-menu a .ico{width:18px;text-align:center;font-size:14px}
+.sb-menu a:hover{background:var(--surf);color:var(--txt)}
+.sb-menu a.active{background:var(--a-dim);color:var(--a);border-color:rgba(124,110,255,.2)}
+.sb-foot{padding-top:14px;border-top:1px solid var(--bdr);margin-top:auto}
+.sb-logout{
+  display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;
+  color:var(--txt2);cursor:pointer;font-size:13px;font-weight:500;transition:all .18s;
+  width:100%;background:none;border:none;font-family:var(--font);
+}
+.sb-logout:hover{color:var(--err);background:rgba(255,77,109,.08)}
+.unread{
+  min-width:17px;height:17px;border-radius:9px;background:var(--a);
+  font-size:10px;font-weight:700;color:#fff;
+  display:flex;align-items:center;justify-content:center;padding:0 3px;flex-shrink:0;
+}
+
+/* ── MAIN ── */
+.main{flex:1;padding:26px;overflow-y:auto;min-width:0}
+.dtab{display:none}
+.dtab.active{display:block}
+
+/* ── STATS ROW ── */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:20px 0}
+.stat-c{
+  background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);
+  padding:16px;display:flex;align-items:center;gap:12px;
+}
+.stat-ico{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.stat-v{font-size:22px;font-weight:900;letter-spacing:-1px}
+.stat-l{font-size:11px;color:var(--txt2);font-weight:500}
+
+/* ── REP RING ── */
+.rep-wrap{position:relative;width:118px;height:118px;margin:0 auto 14px}
+.rep-wrap svg{transform:rotate(-90deg)}
+.rep-track{fill:none;stroke:var(--bdr);stroke-width:9}
+.rep-fill{fill:none;stroke:url(#rg);stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset 1s ease}
+.rep-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rep-n{font-size:21px;font-weight:900;color:var(--a)}
+.rep-l{font-size:10px;color:var(--txt2)}
+
+/* ── MATCH CARDS ── */
+.m-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:16px}
+.mc{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);padding:18px;transition:all .25s;position:relative;overflow:hidden}
+.mc:hover{border-color:rgba(124,110,255,.35);transform:translateY(-2px);box-shadow:0 8px 28px rgba(124,110,255,.12)}
+.mc-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.mc-info{flex:1}
+.mc-name{font-size:13px;font-weight:700}
+.mc-sub{font-size:11px;color:var(--txt2)}
+.cring{position:relative;width:50px;height:50px;flex-shrink:0}
+.cring svg{transform:rotate(-90deg)}
+.cr-t{fill:none;stroke:var(--bdr);stroke-width:4}
+.cr-f{fill:none;stroke-width:4;stroke-linecap:round}
+.cring-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700}
+.mc-skills{margin-bottom:12px}
+.mc-sl{font-size:10px;color:var(--txt2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.mc-foot{display:flex;gap:6px;justify-content:flex-end;margin-top:6px;padding-top:12px;border-top:1px solid var(--bdr)}
+.pend-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(255,160,64,.1);border:1px solid rgba(255,160,64,.3);color:var(--warn)}
+.conn-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.25);color:var(--a4)}
+
+/* ── CHAT ── */
+.chat-wrap{display:flex;height:calc(100vh - var(--nav-h) - 80px);background:var(--bg2);border-radius:var(--r2);overflow:hidden;border:1px solid var(--bdr);min-height:400px}
+.chat-sb{width:260px;border-right:1px solid var(--bdr);display:flex;flex-direction:column;flex-shrink:0}
+.chat-sb-head{padding:16px 14px 12px;border-bottom:1px solid var(--bdr)}
+.chat-sb-head h3{font-size:14px;font-weight:700;margin-bottom:10px}
+.chat-list{flex:1;overflow-y:auto}
+.ci{display:flex;align-items:center;gap:9px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--bdr);transition:background .18s}
+.ci:hover{background:var(--surf)}
+.ci.active{background:var(--a-dim);border-left:2px solid var(--a)}
+.ci-info{flex:1;overflow:hidden}
+.ci-name{font-size:13px;font-weight:600;margin-bottom:1px}
+.ci-prev{font-size:11px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-time{font-size:10px;color:var(--txt2);flex-shrink:0}
+.chat-main{flex:1;display:flex;flex-direction:column;min-width:0}
+.chat-hdr{padding:13px 17px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px}
+.chat-hdr-info{flex:1}
+.chat-hdr-name{font-size:14px;font-weight:700}
+.chat-hdr-st{font-size:11px;color:var(--a4)}
+.chat-hdr-cn{font-size:10px;color:var(--txt2);font-family:var(--mono)}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.chat-empty-state,.chat-no-sel{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--txt2);gap:10px;font-size:13px;text-align:center}
+.chat-empty-state .big,.chat-no-sel .big{font-size:52px;opacity:.2}
+.msg-row{display:flex;flex-direction:column;gap:2px}
+.bubble{max-width:70%;padding:9px 13px;border-radius:13px;font-size:13px;line-height:1.6;word-break:break-word}
+.bubble.mine{background:var(--a);color:#fff;border-bottom-right-radius:3px;align-self:flex-end}
+.bubble.theirs{background:var(--surf2);color:var(--txt);border-bottom-left-radius:3px;align-self:flex-start}
+.msg-meta{font-size:10px;color:var(--txt2);display:flex;align-items:center;gap:3px}
+.msg-meta.mine{justify-content:flex-end}
+.typing{display:flex;align-items:center;gap:3px;padding:8px 12px;background:var(--surf2);border-radius:13px;align-self:flex-start;width:fit-content}
+.tdot{width:5px;height:5px;border-radius:50%;background:var(--txt2);animation:tb 1.2s ease-in-out infinite}
+.tdot:nth-child(2){animation-delay:.2s}
+.tdot:nth-child(3){animation-delay:.4s}
+@keyframes tb{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.chat-inp-row{padding:12px 16px;border-top:1px solid var(--bdr);display:flex;gap:8px;align-items:center}
+.chat-inp-row .inp{flex:1;padding:8px 12px;font-size:13px}
+
+/* ── PROFILE ── */
+.prof-layout{display:grid;grid-template-columns:270px 1fr;gap:20px}
+.prof-card{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);padding:24px;text-align:center}
+.prof-name{font-size:18px;font-weight:900;margin-top:12px;margin-bottom:3px;letter-spacing:-.4px}
+.prof-email{font-size:12px;color:var(--txt2);margin-bottom:14px}
+.prof-sec-ttl{font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.badge-row{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:14px}
+.badge{
+  display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;
+  font-size:11px;font-weight:600;
+  background:var(--a-dim);border:1px solid rgba(124,110,255,.25);color:var(--a);
+}
+.streak-box{display:flex;align-items:center;gap:10px;padding:12px;background:var(--surf);border-radius:10px;border:1px solid var(--bdr)}
+.streak-n{font-size:22px;font-weight:900;color:#ff6b35}
+.lb-item{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;transition:background .18s}
+.lb-item:hover{background:var(--surf)}
+.lb-rank{font-family:var(--mono);font-size:12px;font-weight:700;width:20px;text-align:center;color:var(--txt2)}
+.lb-rank.gold{color:#ffd700}.lb-rank.silver{color:#c0c0c0}.lb-rank.bronze{color:#cd7f32}
+.lb-name{flex:1;font-size:13px;font-weight:600}
+.lb-pts{font-size:11px;color:var(--txt2);font-family:var(--mono)}
+.rep-bar-wrap{margin-bottom:10px}
+.rep-bar-lbl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.rep-bar-lbl span:last-child{color:var(--a);font-family:var(--mono);font-size:11px}
+.rep-bar-track{height:5px;background:var(--bdr);border-radius:3px;overflow:hidden}
+.rep-bar-fill{height:100%;background:linear-gradient(90deg,var(--a),var(--a2));border-radius:3px;transition:width .7s ease}
+
+/* ── SETTINGS ── */
+.set-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.set-sec{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);padding:20px}
+.set-sec h3{font-size:13px;font-weight:700;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--bdr)}
+.set-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr)}
+.set-row:last-child{border-bottom:none;padding-bottom:0}
+.set-lbl{font-size:13px;font-weight:500}
+.set-sub{font-size:11px;color:var(--txt2);margin-top:2px}
+.toggle{width:40px;height:21px;border-radius:11px;background:var(--bdr);position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0}
+.toggle.on{background:var(--a)}
+.toggle::after{content:'';position:absolute;width:15px;height:15px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.toggle.on::after{transform:translateX(19px)}
+
+/* ── NETWORK MONITOR TAB ── */
+.net-monitor{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
+.net-panel{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);padding:18px}
+.net-panel h3{font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.packet-log{max-height:280px;overflow-y:auto;font-family:var(--mono);font-size:11px}
+.packet-row{
+  display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--bdr);
+  animation:fadeIn .3s ease;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.pk-time{color:var(--txt3);flex-shrink:0;width:55px}
+.pk-type{padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;flex-shrink:0}
+.pk-syn{background:rgba(0,229,160,.12);color:var(--a4)}
+.pk-ack{background:rgba(124,110,255,.12);color:var(--a)}
+.pk-data{background:rgba(0,212,255,.1);color:var(--a2)}
+.pk-rst{background:rgba(255,77,109,.1);color:var(--err)}
+.pk-lsa{background:rgba(255,160,64,.1);color:var(--warn)}
+.pk-msg{color:var(--txt2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topo-canvas{width:100%;border-radius:10px;background:var(--bg3);border:1px solid var(--bdr)}
+.node-table{width:100%;border-collapse:collapse;font-size:12px}
+.node-table th{text-align:left;padding:7px 10px;font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--bdr)}
+.node-table td{padding:8px 10px;border-bottom:1px solid var(--bdr);font-family:var(--mono)}
+.node-table tr:last-child td{border-bottom:none}
+.node-online{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--a4);box-shadow:0 0 4px var(--a4);margin-right:5px}
+
+/* ── TRENDING ── */
+.t-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:20px;background:var(--surf);border:1px solid var(--bdr);
+  font-size:12px;cursor:pointer;transition:all .18s;margin:3px;
+}
+.t-chip:hover{border-color:var(--a);color:var(--a)}
+.t-up{color:var(--a4);font-size:10px;font-family:var(--mono)}
+
+/* ── NOTIFICATIONS ── */
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:10px;margin-bottom:8px;background:var(--surf);border:1px solid var(--bdr);transition:all .2s}
+.notif-item.unread-notif{border-color:rgba(124,110,255,.3);background:var(--a-dim)}
+.notif-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.notif-body{flex:1}
+.notif-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.notif-time{font-size:11px;color:var(--txt2);font-family:var(--mono)}
+
+@media(max-width:900px){
+  .hero{flex-direction:column;padding:50px 22px}
+  .hero-vis{min-height:280px}
+  .section,.cta-sec,footer{padding:52px 22px}
+  .sidebar{display:none}
+  .prof-layout{grid-template-columns:1fr}
+  .set-grid{grid-template-columns:1fr}
+  .net-monitor{grid-template-columns:1fr}
+  #nav{padding:0 16px}
+  .nav-links{display:none}
+  #matchNotif{width:calc(100vw - 32px);right:16px;bottom:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- Mesh BG -->
+<canvas id="meshBg"></canvas>
+
+<!-- Toasts -->
+<div id="toasts"></div>
+
+<!-- Match Notification Card -->
+<div id="matchNotif">
+  <div class="mn-glow-bar"></div>
+  <div class="mn-header">
+    <div class="mn-badge">
+      <span class="mn-badge-dot"></span>
+      Match Found
+    </div>
+    <button class="mn-close" onclick="dismissMatchNotif()" title="Dismiss">✕</button>
+  </div>
+  <div class="mn-body">
+    <div class="mn-av">
+      <div class="mn-av-inner" id="mnAvInner"></div>
+    </div>
+    <div class="mn-info">
+      <div class="mn-title">You matched with <span id="mnPartnerName">@partner</span>!</div>
+      <div class="mn-sub" id="mnSkillSnippet">Skill overlap detected</div>
+      <div class="mn-compat">
+        <div class="mn-compat-bar"><div class="mn-compat-fill" id="mnCompatFill" style="width:0%"></div></div>
+        <span id="mnCompatVal">0%</span> compatibility
+      </div>
+    </div>
+  </div>
+  <div class="mn-skills" id="mnSkillTags"></div>
+  <div class="mn-actions">
+    <button class="btn btn-pri btn-sm" id="mnChatBtn" onclick="matchNotifChat()">💬 Start Chat</button>
+    <button class="btn btn-sec btn-sm" onclick="dismissMatchNotif()">Maybe Later</button>
+  </div>
+</div>
+
+<!-- ════════════════ NAVBAR ════════════════ -->
+<nav id="nav">
+  <div class="nav-logo" onclick="scrollTo_('#page-home')">SkillSync</div>
+  <ul class="nav-links" id="pub-links">
+    <li><a onclick="scrollTo_('#page-home')">Home</a></li>
+    <li><a onclick="scrollTo_('#features')">Features</a></li>
+    <li><a onclick="scrollTo_('#howitworks')">How It Works</a></li>
+    <li><a onclick="scrollTo_('#cn-concepts')">CN Concepts</a></li>
+    <li><a onclick="scrollTo_('#help')">Help</a></li>
+  </ul>
+  <div class="nav-r">
+    <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+
+    <div id="pub-nav">
+      <button class="nbtn nbtn-ghost" onclick="go('login')">Login</button>
+      <button class="nbtn nbtn-pri" style="margin-left:7px" onclick="go('signup')">Sign Up</button>
+    </div>
+    <div id="app-nav" class="hidden" style="align-items:center;gap:7px">
+      <button class="icon-btn" onclick="showTab('notifications')" id="notifNavBtn" title="Notifications">
+        🔔<span id="notifPill" class="notif-pill hidden">0</span>
+      </button>
+      <button class="nbtn nbtn-ghost" onclick="logout()">Sign Out</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════════ HOME PAGE ════════════════ -->
+<div id="page-home" class="page active">
+  <section class="hero">
+    <div class="hero-copy">
+      <div class="hero-badge"><span class="pulse-dot"></span>Campus Skill Exchange Network</div>
+      <h1>Trade Skills.<br><span class="grad">Grow Together.</span></h1>
+      <p>SkillSync uses intelligent graph matching and real-time WebSocket channels to connect students for peer-to-peer knowledge exchange — a live demonstration of Computer Networks principles.</p>
+      <div class="hero-cta">
+        <button class="btn btn-pri" style="font-size:14px;padding:11px 26px" onclick="go('signup')">Get Started Free →</button>
+        <button class="btn btn-sec" onclick="scrollTo_('#howitworks')">How It Works</button>
+      </div>
+      <div class="hero-stats">
+        <div class="hstat"><div class="n" id="hc1">0</div><div class="l">Active Users</div></div>
+        <div class="hstat"><div class="n" id="hc2">0</div><div class="l">Skills Listed</div></div>
+        <div class="hstat"><div class="n" id="hc3">0</div><div class="l">Exchanges Made</div></div>
+      </div>
+    </div>
+    <div class="hero-vis">
+      <div class="net-canvas-wrap">
+        <canvas id="heroNet"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section" id="features">
+    <div><span class="sec-tag">Platform Features</span></div>
+    <h2 class="sec-title">Everything You Need to Exchange Skills</h2>
+    <p class="sec-sub">Built on real Computer Networks principles — every feature maps directly to a protocol or networking concept.</p>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(124,110,255,.14)">🧠</div>
+        <h3>Smart Compatibility Matching</h3>
+        <p>Weighted graph metric: skill overlap(50%) + availability(30%) + reputation(20%) — computed like OSPF link-cost.</p>
+        <div class="feat-cn"><span class="cn-pill">OSPF Link-State</span></div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(0,212,255,.14)">⚡</div>
+        <h3>Real-Time WebSocket Chat</h3>
+        <p>Persistent full-duplex connections. No polling. Messages pushed instantly via Socket.IO multicast rooms.</p>
+        <div class="feat-cn"><span class="cn-pill">RFC 6455 WebSocket</span></div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(0,229,160,.14)">🤝</div>
+        <h3>3-Way Handshake Connections</h3>
+        <p>Connection flow mirrors TCP SYN→SYN-ACK→ACK before an exchange channel opens.</p>
+        <div class="feat-cn"><span class="cn-pill">TCP Handshake</span></div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(255,107,157,.14)">⭐</div>
+        <h3>Reputation & Gamification</h3>
+        <p>Earn points, collect badges, and climb the leaderboard. Reputation is a routing metric affecting your match priority.</p>
+        <div class="feat-cn"><span class="cn-pill">Routing Metric</span></div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(255,160,64,.14)">🌐</div>
+        <h3>Live Network Topology</h3>
+        <p>Real-time animated graph of all connected nodes and active channels — like an OSPF topology database viewer.</p>
+        <div class="feat-cn"><span class="cn-pill">LSDB Visualization</span></div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(124,110,255,.14)">📡</div>
+        <h3>Broadcast / Unicast / Multicast</h3>
+        <p>User-list updates use broadcast. Match notifications use unicast. Chat uses multicast rooms — all three delivery modes.</p>
+        <div class="feat-cn"><span class="cn-pill">IP Delivery Modes</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="section sec-alt" id="howitworks">
+    <div><span class="sec-tag">Protocol Flow</span></div>
+    <h2 class="sec-title">How SkillSync Works</h2>
+    <p class="sec-sub">Every step maps to a real networking concept — from DHCP-style registration to TCP connection establishment.</p>
+    <div class="timeline">
+      <div class="step"><div class="step-n">01</div><div class="step-c"><h3>Register Your Node</h3><p>Sign up and list your skills and availability. The server registers you like a DHCP client getting an IP address — your username is your logical network address.</p></div></div>
+      <div class="step"><div class="step-n">02</div><div class="step-c"><h3>Match Detection (Graph Routing)</h3><p>The server runs a compatibility algorithm across all connected nodes — like Dijkstra computing shortest paths. Bidirectional skill matches create edges in the skill graph.</p></div></div>
+      <div class="step"><div class="step-n">03</div><div class="step-c"><h3>3-Way Handshake</h3><p>Send a connection request (SYN). Your match accepts (SYN-ACK). The server opens a private channel (ACK). The session is now ESTABLISHED.</p></div></div>
+      <div class="step"><div class="step-n">04</div><div class="step-c"><h3>Real-Time Exchange</h3><p>Messages flow over WebSocket multicast within your private room. Typing indicators use a debounced signal — like TCP's Nagle algorithm.</p></div></div>
+      <div class="step"><div class="step-n">05</div><div class="step-c"><h3>Rate & Build Reputation</h3><p>Rate sessions to earn points. Reputation updates your routing metric, improving your rank in future matches — like updating OSPF link costs.</p></div></div>
+    </div>
+  </section>
+
+  <!-- CN Concepts -->
+  <section class="section" id="cn-concepts">
+    <div><span class="sec-tag">Computer Networks Concepts</span></div>
+    <h2 class="sec-title">Networking Principles in Action</h2>
+    <p class="sec-sub">SkillSync is a complete demonstration of CN concepts from the textbook — implemented in a real working application.</p>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="feat-icon" style="background:rgba(0,212,255,.1)">🔄</div><h3>TCP/IP Model</h3><p>HTTP/1.1 carries SPA shell (Application). WebSocket frames carry messages (Transport). All over TCP (Network + Data Link).</p></div>
+      <div class="feat-card"><div class="feat-icon" style="background:rgba(0,229,160,.1)">📡</div><h3>WebSocket Protocol</h3><p>Full-duplex over a single TCP connection. HTTP Upgrade → 101 Switching Protocols. Eliminates polling — push latency O(1).</p></div>
+      <div class="feat-card"><div class="feat-icon" style="background:rgba(124,110,255,.1)">🗺️</div><h3>Routing Algorithms</h3><p>Compatibility score = composite OSPF-style metric. Match detection = Dijkstra on the skill graph. ARP table = sid_map dictionary.</p></div>
+      <div class="feat-card"><div class="feat-icon" style="background:rgba(255,107,157,.1)">🔀</div><h3>Multiplexing</h3><p>Many logical chat channels over one WebSocket connection. Socket.IO rooms handle the mux/demux layer transparently.</p></div>
+      <div class="feat-card"><div class="feat-icon" style="background:rgba(255,160,64,.1)">🛡️</div><h3>Loop Prevention</h3><p>Messages are delivered with skip_sid — the sender's socket is excluded from the multicast (split-horizon / poison-reverse).</p></div>
+      <div class="feat-card"><div class="feat-icon" style="background:rgba(0,212,255,.1)">💀</div><h3>Fault Detection</h3><p>Disconnection triggers reverse ARP lookup and LSA broadcast — like OSPF detecting a failed link and flooding topology updates.</p></div>
+    </div>
+  </section>
+
+  <!-- Help -->
+  <section class="section sec-alt" id="help">
+    <div><span class="sec-tag">Help Center</span></div>
+    <h2 class="sec-title">Everything You Need to Know</h2>
+    <p class="sec-sub">Quick answers to the most common questions about SkillSync.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:760px">
+      <div class="card"><h3 style="margin-bottom:7px">🔐 How do I create an account?</h3><p style="color:var(--txt2);font-size:13px;line-height:1.7">Click <strong>Sign Up</strong>, enter your email, choose a username and password. Your account is stored in your browser's localStorage and ready instantly.</p></div>
+      <div class="card"><h3 style="margin-bottom:7px">🤝 How does matching work?</h3><p style="color:var(--txt2);font-size:13px;line-height:1.7">Bidirectional matching: you must offer what they want AND they must offer what you want. A weighted compatibility score (skills 50% + availability 30% + reputation 20%) is shown as a % ring on each card.</p></div>
+      <div class="card"><h3 style="margin-bottom:7px">💬 How does chat work?</h3><p style="color:var(--txt2);font-size:13px;line-height:1.7">Once a connection request is accepted, a private Socket.IO room opens. Messages are delivered in real time with typing indicators. Send a message by pressing Enter or the Send button.</p></div>
+      <div class="card"><h3 style="margin-bottom:7px">⭐ What is reputation?</h3><p style="color:var(--txt2);font-size:13px;line-height:1.7">Reputation is earned by accepting connections, completing sessions, and receiving high ratings. More reputation improves your rank in match results and unlocks badges.</p></div>
+      <div class="card"><h3 style="margin-bottom:7px">🌐 What CN concepts are demonstrated?</h3><p style="color:var(--txt2);font-size:13px;line-height:1.7">TCP/IP stack, WebSocket protocol (RFC 6455), 3-way handshake, Socket.IO rooms (multicast), broadcast/unicast/multicast delivery, OSPF-style routing metrics, ARP table analogy, split-horizon loop prevention, and fault detection via LSA flooding.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <div><span class="f-logo">SkillSync</span><span style="margin-left:10px;opacity:.5">A Computer Networks Project</span></div>
+    <div style="font-family:var(--mono);font-size:11px">Flask · Socket.IO · WebSocket · TCP/IP</div>
+  </footer>
+</div>
+
+<!-- ════════════════ LOGIN PAGE ════════════════ -->
+<div id="page-login" class="page">
+  <div class="auth-box">
+    <h2>Welcome Back 👋</h2>
+    <p class="sub">Login to your SkillSync account</p>
+    <div id="loginErr" class="form-err"></div>
+    <div class="ig"><label>Username</label><input type="text" class="inp" id="lUser" placeholder="your_username" autocomplete="username"/></div>
+    <div class="ig"><label>Password</label><input type="password" class="inp" id="lPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter'&&!isSubmittingAuth)doLogin()"/></div>
+    <button class="btn btn-pri" id="loginBtn" style="width:100%;justify-content:center;margin-top:6px" onclick="doLogin()">Login →</button>
+    <div class="auth-link">No account? <a onclick="go('signup')">Sign Up</a></div>
+  </div>
+</div>
+
+<!-- ════════════════ SIGNUP PAGE ════════════════ -->
+<div id="page-signup" class="page">
+  <div class="auth-box">
+    <h2>Create Account 🚀</h2>
+    <p class="sub">Join the peer skill exchange network</p>
+    <div id="signupErr" class="form-err"></div>
+    <div class="ig"><label>Email</label><input type="email" class="inp" id="sEmail" placeholder="you@campus.edu" autocomplete="email"/></div>
+    <div class="ig"><label>Username</label><input type="text" class="inp" id="sUser" placeholder="alice_c" autocomplete="username"/></div>
+    <div class="ig"><label>Password (min 6 chars)</label><input type="password" class="inp" id="sPass" placeholder="••••••••" autocomplete="new-password"/></div>
+    <div class="ig"><label>Skills I Can Teach <span style="color:var(--a4);font-size:10px">(comma-separated)</span></label><input type="text" class="inp" id="sOffered" placeholder="e.g. Python, Guitar, Excel" autocomplete="off"/></div>
+    <div class="ig"><label>Skills I Want to Learn <span style="color:var(--a);font-size:10px">(comma-separated)</span></label><input type="text" class="inp" id="sWanted" placeholder="e.g. Cooking, Design, Spanish" autocomplete="off" onkeydown="if(event.key==='Enter'&&!isSubmittingAuth)doSignup()"/></div>
+    <div class="ig"><label>Available Days</label><div class="days-grid" id="signupDays"><button class="day-btn" data-d="Mon" type="button">Mon</button><button class="day-btn" data-d="Tue" type="button">Tue</button><button class="day-btn" data-d="Wed" type="button">Wed</button><button class="day-btn" data-d="Thu" type="button">Thu</button><button class="day-btn" data-d="Fri" type="button">Fri</button><button class="day-btn" data-d="Sat" type="button">Sat</button><button class="day-btn" data-d="Sun" type="button">Sun</button></div></div>
+    <button class="btn btn-pri" id="signupBtn" style="width:100%;justify-content:center;margin-top:8px" onclick="doSignup()">Create Account →</button>
+    <div class="auth-link">Already have an account? <a onclick="go('login')">Login</a></div>
+  </div>
+</div>
+
+<!-- ════════════════ DASHBOARD ════════════════ -->
+<div id="page-dashboard" class="page">
+  <div class="app-wrap">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sb-user" onclick="showTab('profile')">
+        <div class="av av-sm" id="sbAv" style="background:var(--a-dim);color:var(--a)">U</div>
+        <div class="sb-info">
+          <div class="sb-name" id="sbName">User</div>
+          <div class="sb-rep" id="sbRep">⭐ 0 pts</div>
+        </div>
+        <div class="online-dot"></div>
+      </div>
+      <ul class="sb-menu">
+        <li><a id="tab-home"         onclick="showTab('home')"><span class="ico">🏠</span>Dashboard</a></li>
+        <li><a id="tab-matches"      onclick="showTab('matches')"><span class="ico">🎯</span>Matches</a></li>
+        <li><a id="tab-chat"         onclick="showTab('chat')">
+          <span class="ico">💬</span>Chat
+          <span id="chatBadge" class="unread hidden" style="margin-left:auto">0</span>
+        </a></li>
+        <li><a id="tab-network"      onclick="showTab('network')"><span class="ico">🌐</span>Network Monitor</a></li>
+        <li><a id="tab-profile"      onclick="showTab('profile')"><span class="ico">👤</span>Profile</a></li>
+        <li><a id="tab-settings"     onclick="showTab('settings')"><span class="ico">⚙️</span>Settings</a></li>
+        <li><a id="tab-notifications" onclick="showTab('notifications')">
+          <span class="ico">🔔</span>Notifications
+          <span id="notifSbCount" class="unread hidden" style="margin-left:auto">0</span>
+        </a></li>
+      </ul>
+      <div class="sb-foot">
+        <button class="sb-logout" onclick="logout()">🚪 Sign Out</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+
+      <!-- ── HOME TAB ── -->
+      <div class="dtab active" id="dt-home">
+        <div style="margin-bottom:20px">
+          <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px">Good day, <span id="greetName" style="color:var(--a)">there</span>! 👋</h2>
+          <p style="color:var(--txt2);font-size:13px;margin-top:3px">Your skill exchange network overview.</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat-c"><div class="stat-ico" style="background:rgba(124,110,255,.14)">🎯</div><div><div class="stat-v" id="stMatches">0</div><div class="stat-l">Matches</div></div></div>
+          <div class="stat-c"><div class="stat-ico" style="background:rgba(0,229,160,.14)">💬</div><div><div class="stat-v" id="stChats">0</div><div class="stat-l">Active Chats</div></div></div>
+          <div class="stat-c"><div class="stat-ico" style="background:rgba(255,107,157,.14)">⭐</div><div><div class="stat-v" id="stRep">0</div><div class="stat-l">Reputation</div></div></div>
+          <div class="stat-c"><div class="stat-ico" style="background:rgba(255,160,64,.14)">🔥</div><div><div class="stat-v" id="stStreak">0</div><div class="stat-l">Day Streak</div></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:210px 1fr;gap:18px;margin-bottom:18px">
+          <div class="card" style="text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Reputation</div>
+            <div class="rep-wrap">
+              <svg width="118" height="118" viewBox="0 0 118 118">
+                <defs>
+                  <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#7c6eff"/>
+                    <stop offset="100%" stop-color="#00d4ff"/>
+                  </linearGradient>
+                </defs>
+                <circle class="rep-track" cx="59" cy="59" r="48"/>
+                <circle class="rep-fill" id="repArc" cx="59" cy="59" r="48" stroke-dasharray="301.6" stroke-dashoffset="240"/>
+              </svg>
+              <div class="rep-txt"><div class="rep-n" id="repN">0</div><div class="rep-l">pts</div></div>
+            </div>
+            <div style="font-size:11px;color:var(--txt2)">Exchange to level up!</div>
+          </div>
+          <div>
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">⚡ Top Recommended Matches</h3>
+            <div class="m-grid" id="recMatches" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div>
+            <div id="recEmpty" class="hidden" style="color:var(--txt2);font-size:13px;padding:20px 0">No matches yet. Make sure your offered and wanted skills overlap with other users!</div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:13px">🔥 Trending Skills</h3>
+          <div id="trending"></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:13px">🟢 Online Now <span class="cn-pill" style="margin-left:8px">Network Nodes</span></h3>
+          <div id="onlineNow" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+      </div>
+
+      <!-- ── MATCHES TAB ── -->
+      <div class="dtab" id="dt-matches">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px">Your Matches</h2>
+          <input type="text" class="inp" placeholder="Filter by skill or name…" id="mFilter" oninput="filterMatches()" style="width:200px;padding:7px 12px;font-size:13px"/>
+        </div>
+        <div class="m-grid" id="allMatches"></div>
+        <div id="noMatchesMsg" class="hidden" style="text-align:center;padding:60px;color:var(--txt2)">
+          <div style="font-size:48px;margin-bottom:14px">🔍</div>
+          <p>No matches found yet. Make sure your offered and wanted skills overlap with other users!</p>
+        </div>
+      </div>
+
+      <!-- ── CHAT TAB ── -->
+      <div class="dtab" id="dt-chat">
+        <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px;margin-bottom:18px">Messages <span class="cn-pill">WebSocket Multicast</span></h2>
+        <div class="chat-wrap">
+          <div class="chat-sb">
+            <div class="chat-sb-head">
+              <h3>Conversations</h3>
+              <input type="text" class="inp" placeholder="Search…" id="chatSearch" oninput="filterChats()" style="padding:6px 10px;font-size:12px"/>
+            </div>
+            <div class="chat-list" id="chatList">
+              <div class="chat-no-sel" style="height:100%;padding:30px"><div class="big">💬</div><p>No conversations yet</p></div>
+            </div>
+          </div>
+          <div class="chat-main" id="chatMain">
+            <div class="chat-no-sel"><div class="big">💬</div><p>Select a conversation<br>to start chatting</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── NETWORK MONITOR TAB ── -->
+      <div class="dtab" id="dt-network">
+        <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px;margin-bottom:6px">Network Monitor</h2>
+        <p style="color:var(--txt2);font-size:13px;margin-bottom:20px">Live view of the SkillSync network topology — like an OSPF LSDB viewer.</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px" id="netStats"></div>
+        <div class="net-monitor">
+          <div class="net-panel" style="grid-column:1/-1">
+            <h3>🗺️ Live Topology <span class="cn-pill">LSDB View</span></h3>
+            <canvas id="topoCanvas" class="topo-canvas" height="280"></canvas>
+          </div>
+          <div class="net-panel">
+            <h3>📋 Node Routing Table <span class="cn-pill">ARP / Forwarding Table</span></h3>
+            <div id="nodeTableWrap"></div>
+          </div>
+          <div class="net-panel">
+            <h3>📦 Packet Log <span class="cn-pill">PCAP Capture</span></h3>
+            <div class="packet-log" id="packetLog"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PROFILE TAB ── -->
+      <div class="dtab" id="dt-profile">
+        <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px;margin-bottom:20px">My Profile</h2>
+        <div class="prof-layout">
+          <div>
+            <div class="prof-card">
+              <div class="av av-lg" id="profAv" style="background:var(--a-dim);color:var(--a);margin:0 auto"></div>
+              <div class="prof-name" id="profName">—</div>
+              <div class="prof-email" id="profEmail">—</div>
+              <div class="badge-row" id="profBadges"></div>
+              <div style="margin-bottom:14px"><div class="prof-sec-ttl">Skills Offered</div><div id="profOff"></div></div>
+              <div style="margin-bottom:14px"><div class="prof-sec-ttl">Skills Wanted</div><div id="profWant"></div></div>
+              <div style="margin-bottom:16px"><div class="prof-sec-ttl">Availability</div><div id="profAvail"></div></div>
+              <button class="btn btn-sec btn-sm" style="width:100%;justify-content:center" onclick="openEditModal()">✏️ Edit Profile</button>
+            </div>
+            <div class="card" style="margin-top:14px">
+              <div class="prof-sec-ttl" style="margin-bottom:10px">🔥 Learning Streak</div>
+              <div class="streak-box">
+                <span style="font-size:22px">🔥</span>
+                <div>
+                  <div class="streak-n" id="streakN">0</div>
+                  <div style="font-size:11px;color:var(--txt2)">days in a row</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card" style="margin-bottom:18px">
+              <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">🏆 Leaderboard <span class="cn-pill">Routing Metric Rank</span></h3>
+              <div id="leaderboard"></div>
+            </div>
+            <div class="card">
+              <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">📊 Reputation Breakdown</h3>
+              <div id="repBreak"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS TAB ── -->
+      <div class="dtab" id="dt-settings">
+        <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px;margin-bottom:20px">Settings</h2>
+        <div class="set-grid">
+          <div class="set-sec">
+            <h3>🔔 Notifications</h3>
+            <div class="set-row"><div><div class="set-lbl">Match Alerts</div><div class="set-sub">Notify when you match</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+            <div class="set-row"><div><div class="set-lbl">New Messages</div><div class="set-sub">Alerts for chat messages</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+            <div class="set-row"><div><div class="set-lbl">Connection Requests</div><div class="set-sub">When someone connects</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+          </div>
+          <div class="set-sec">
+            <h3>🔐 Privacy</h3>
+            <div class="set-row"><div><div class="set-lbl">Show Online Status</div><div class="set-sub">Visible to matched users</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+            <div class="set-row"><div><div class="set-lbl">Public Profile</div><div class="set-sub">Show in match results</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+          </div>
+          <div class="set-sec">
+            <h3>🎨 Appearance</h3>
+            <div class="set-row">
+              <div><div class="set-lbl">Dark Mode</div><div class="set-sub" id="themeLbl">Currently: Dark</div></div>
+              <button class="toggle on" id="tog2" onclick="toggleTheme()"></button>
+            </div>
+          </div>
+          <div class="set-sec">
+            <h3>🗂️ Account</h3>
+            <div class="set-row"><div><div class="set-lbl">Export My Data</div></div><button class="btn btn-sec btn-sm" onclick="exportData()">Export</button></div>
+            <div class="set-row"><div><div class="set-lbl" style="color:var(--err)">Delete Account</div></div><button class="btn btn-red btn-sm" onclick="deleteAccount()">Delete</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── NOTIFICATIONS TAB ── -->
+      <div class="dtab" id="dt-notifications">
+        <h2 style="font-size:22px;font-weight:900;letter-spacing:-.5px;margin-bottom:18px">Notifications</h2>
+        <div id="notifList"><div class="card" style="color:var(--txt2);font-size:13px">No notifications yet. Match with someone to get started!</div></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ════════ MODALS ════════ -->
+
+<!-- Connection Request -->
+<div id="mConn" class="moverlay hidden">
+  <div class="mbox">
+    <button class="mclose" onclick="closeModal('mConn')">✕</button>
+    <div class="mh">Send Connection Request</div>
+    <div class="msub">Initiate a 3-way handshake with <strong id="connTo"></strong> <span class="cn-pill">TCP SYN</span></div>
+    <div class="ig"><label>Message (optional)</label><input type="text" class="inp" id="connMsg" placeholder="Hey! I'd love to exchange Python for Design…"/></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-sec" onclick="closeModal('mConn')">Cancel</button>
+      <button class="btn btn-pri" onclick="sendConnReq()">Send Request 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- Incoming Request -->
+<div id="mIncoming" class="moverlay hidden">
+  <div class="mbox" style="text-align:center">
+    <div style="font-size:46px;margin-bottom:10px">🎯</div>
+    <div class="mh">Connection Request! <span class="cn-pill" style="font-size:9px">TCP SYN Received</span></div>
+    <p style="color:var(--txt2);font-size:14px;margin-bottom:6px"><strong id="incomingFrom"></strong> wants to exchange skills!</p>
+    <p style="color:var(--txt2);font-size:13px;margin-bottom:22px;font-style:italic" id="incomingMsg"></p>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn btn-sec" onclick="respondReq(false)">Decline (RST)</button>
+      <button class="btn btn-grn" onclick="respondReq(true)">Accept — SYN-ACK 🎉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Profile -->
+<div id="mEdit" class="moverlay hidden">
+  <div class="mbox mbox-wide">
+    <button class="mclose" onclick="closeModal('mEdit')">✕</button>
+    <div class="mh">Edit Profile</div>
+    <div class="msub">Changes will re-register your node on the network and trigger new match detection.</div>
+    <div class="ig"><label>Skills Offered</label><input type="text" class="inp" id="editOff" placeholder="Python, Guitar…"/></div>
+    <div class="ig"><label>Skills Wanted</label><input type="text" class="inp" id="editWant" placeholder="Design, Yoga…"/></div>
+    <div class="ig">
+      <label>Availability</label>
+      <div class="days-grid" id="editDays">
+        <button type="button" class="day-btn" data-d="Mon">Mon</button>
+        <button type="button" class="day-btn" data-d="Tue">Tue</button>
+        <button type="button" class="day-btn" data-d="Wed">Wed</button>
+        <button type="button" class="day-btn" data-d="Thu">Thu</button>
+        <button type="button" class="day-btn" data-d="Fri">Fri</button>
+        <button type="button" class="day-btn" data-d="Sat">Sat</button>
+        <button type="button" class="day-btn" data-d="Sun">Sun</button>
+      </div>
+    </div>
+    <button class="btn btn-pri" style="width:100%;justify-content:center;margin-top:14px" onclick="saveEdit()">Save Changes</button>
+  </div>
+</div>
+
+<!-- Rate Session -->
+<div id="mRate" class="moverlay hidden">
+  <div class="mbox" style="text-align:center">
+    <button class="mclose" onclick="closeModal('mRate')">✕</button>
+    <div style="font-size:42px;margin-bottom:10px">⭐</div>
+    <div class="mh">Rate Your Session</div>
+    <p style="color:var(--txt2);font-size:13px;margin-bottom:18px">How was your exchange with <strong id="ratePartner"></strong>?</p>
+    <div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px" id="starRow">
+      <span class="star" data-v="1" style="font-size:30px;cursor:pointer;opacity:.35" onclick="selectStar(1)">⭐</span>
+      <span class="star" data-v="2" style="font-size:30px;cursor:pointer;opacity:.35" onclick="selectStar(2)">⭐</span>
+      <span class="star" data-v="3" style="font-size:30px;cursor:pointer;opacity:.35" onclick="selectStar(3)">⭐</span>
+      <span class="star" data-v="4" style="font-size:30px;cursor:pointer;opacity:.35" onclick="selectStar(4)">⭐</span>
+      <span class="star" data-v="5" style="font-size:30px;cursor:pointer;opacity:.35" onclick="selectStar(5)">⭐</span>
+    </div>
+    <p style="font-size:11px;color:var(--txt2);margin-bottom:16px;font-family:var(--mono)">Rating updates your routing metric (reputation)</p>
+    <button class="btn btn-grn" style="width:100%;justify-content:center" onclick="submitRating()">Submit Rating</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════ -->
+<script>
+/* ─── STATE ─── */
+let CU               = null;
+let socket           = null;
+let allUsers         = [];
+let rooms            = {};
+let chats            = {};
+let storedMatchList  = [];
+let activeChatPartner= null;
+let pendingReq       = null;
+let connTarget       = null;
+let rateTarget       = null;
+let starVal          = 0;
+let unreadCounts     = {};
+let notifications    = [];
+let isDark           = true;
+let msgCount         = 0;
+let packetLogEntries = [];
+
+// Match notification state
+let _mnPartner = null;
+let _mnRoom    = null;
+let _mnDismissTimer = null;
+
+const TRENDING = ['Python','Machine Learning','UI/UX Design','React','Data Science',
+                  'Guitar','Photography','Spanish','Java','Cooking','Excel','Statistics'];
+
+/* ─── MESH BACKGROUND ─── */
+(function(){
+  const cv = document.getElementById('meshBg');
+  const ctx = cv.getContext('2d');
+  let ns = [], W, H;
+  const rsz = () => {
+    W = cv.width = innerWidth;
+    H = cv.height = innerHeight;
+    ns = Array.from({length:50}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-.5)*.3, vy: (Math.random()-.5)*.3,
+      r: Math.random()*1.5+.5
+    }));
+  };
+  const draw = () => {
+    ctx.clearRect(0,0,W,H);
+    const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const nc = dark ? 'rgba(124,110,255,' : 'rgba(91,77,221,';
+    ns.forEach(n => {
+      n.x += n.vx; n.y += n.vy;
+      if(n.x<0||n.x>W) n.vx *= -1;
+      if(n.y<0||n.y>H) n.vy *= -1;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+      ctx.fillStyle = nc+'0.6)'; ctx.fill();
+    });
+    for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++){
+      const dx=ns[i].x-ns[j].x, dy=ns[i].y-ns[j].y, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<110){
+        ctx.beginPath(); ctx.moveTo(ns[i].x,ns[i].y); ctx.lineTo(ns[j].x,ns[j].y);
+        ctx.strokeStyle = nc+(1-d/110)*.22+')'; ctx.lineWidth=.7; ctx.stroke();
+      }
+    }
+    requestAnimationFrame(draw);
+  };
+  rsz(); draw();
+  window.addEventListener('resize', rsz);
+})();
+
+/* ─── HERO NETWORK ANIMATION ─── */
+(function(){
+  const cv = document.getElementById('heroNet');
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+  const SIZE = 420;
+  cv.width = cv.height = SIZE;
+  const nodes = [
+    {x:210,y:210,label:'You',color:'#7c6eff',r:18},
+    {x:95,y:110,label:'Alice',color:'#00d4ff',r:13},
+    {x:330,y:95,label:'Bob',color:'#00e5a0',r:13},
+    {x:340,y:310,label:'Carol',color:'#ff6b9d',r:13},
+    {x:85,y:310,label:'Dave',color:'#ffa040',r:13},
+    {x:210,y:60,label:'Eve',color:'#7c6eff',r:10},
+    {x:370,y:200,label:'Frank',color:'#00d4ff',r:10},
+  ];
+  const edges = [[0,1],[0,2],[0,3],[1,4],[2,5],[2,6],[3,6],[1,2]];
+  let pulses = [];
+  let t = 0;
+  const addPulse = () => {
+    const e = edges[Math.floor(Math.random()*edges.length)];
+    pulses.push({from:e[0],to:e[1],p:0,speed:.018+Math.random()*.012});
+  };
+  setInterval(addPulse, 1200);
+  addPulse(); addPulse();
+
+  const draw = () => {
+    ctx.clearRect(0,0,SIZE,SIZE);
+    const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+    edges.forEach(([a,b]) => {
+      const na=nodes[a],nb=nodes[b];
+      const g = ctx.createLinearGradient(na.x,na.y,nb.x,nb.y);
+      g.addColorStop(0,na.color+'55'); g.addColorStop(1,nb.color+'55');
+      ctx.beginPath(); ctx.moveTo(na.x,na.y); ctx.lineTo(nb.x,nb.y);
+      ctx.strokeStyle=g; ctx.lineWidth=1.5; ctx.stroke();
+    });
+    pulses = pulses.filter(p => {
+      p.p += p.speed;
+      if(p.p>1) return false;
+      const a=nodes[p.from],b=nodes[p.to];
+      const x=a.x+(b.x-a.x)*p.p, y=a.y+(b.y-a.y)*p.p;
+      ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,.2)'; ctx.fill();
+      return true;
+    });
+    nodes.forEach((n,i) => {
+      const g2 = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*2.5);
+      g2.addColorStop(0,n.color+'40'); g2.addColorStop(1,'transparent');
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r*2.5,0,Math.PI*2);
+      ctx.fillStyle=g2; ctx.fill();
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+      ctx.fillStyle=n.color; ctx.fill();
+      ctx.fillStyle= dark?'#e2e8ff':'#0d0f1d';
+      ctx.font=`${i===0?'700':'500'} 11px Outfit,sans-serif`;
+      ctx.textAlign='center';
+      ctx.fillText(n.label, n.x, n.y+n.r+13);
+    });
+    t++;
+    requestAnimationFrame(draw);
+  };
+  draw();
+})();
+
+/* ─── HERO COUNTERS ─── */
+const animCtr = (el,t) => {
+  let v=0;
+  const iv = setInterval(() => {
+    v = Math.min(v+t/55,t);
+    el.textContent = Math.floor(v);
+    if(v>=t) clearInterval(iv);
+  },28);
+};
+setTimeout(() => {
+  const h1=document.getElementById('hc1');
+  const h2=document.getElementById('hc2');
+  const h3=document.getElementById('hc3');
+  if(h1) animCtr(h1,248);
+  if(h2) animCtr(h2,1340);
+  if(h3) animCtr(h3,562);
+},700);
+
+/* ─── NAVIGATION ─── */
+function go(page){
+  if(page==='dashboard' && !CU) page='login';
+  if((page==='login'||page==='signup') && CU) page='dashboard';
+  _showPage(page);
+  if(page==='dashboard' && CU) showTab('home');
+}
+
+function _showPage(page){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-'+page);
+  if(el){ el.classList.add('active'); window.scrollTo(0,0); }
+  const isApp = page==='dashboard';
+  const pubEl = document.getElementById('pub-links');
+  const pubNav = document.getElementById('pub-nav');
+  const appNav = document.getElementById('app-nav');
+  if(pubEl) pubEl.classList.toggle('hidden', isApp);
+  if(pubNav) pubNav.classList.toggle('hidden', isApp||!!CU);
+  if(appNav){ appNav.classList.toggle('hidden', !isApp); if(isApp) appNav.style.display='flex'; }
+}
+
+function scrollTo_(id){
+  if(document.getElementById('page-home') && !document.getElementById('page-home').classList.contains('active')){
+    _showPage('home');
+  }
+  setTimeout(() => {
+    if(id==='#page-home'){ window.scrollTo({top:0,behavior:'smooth'}); }
+    else { document.querySelector(id)?.scrollIntoView({behavior:'smooth', block:'start'}); }
+  }, 80);
+}
+
+/* ─── PAGE INIT ─── */
+function initPage(){
+  if(!CU){
+    const saved = getCurrentUser();
+    if(saved){ CU=saved; bootUser(saved); return; }
+  }
+  const hash = window.location.hash.replace(/^#\/?/,'').toLowerCase().trim();
+  let page = hash||'home';
+  if(!['home','login','signup','dashboard','help'].includes(page)) page='home';
+  if(page==='dashboard' && !CU) page='login';
+  if((page==='login'||page==='signup') && CU) page='dashboard';
+  _showPage(page);
+  if(page==='dashboard' && CU) showTab('home');
+}
+window.addEventListener('hashchange', initPage);
+
+/* ─── THEME ─── */
+function toggleTheme(){
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark?'dark':'light');
+  const tb = document.getElementById('themeBtn');
+  if(tb) tb.textContent = isDark?'🌙':'☀️';
+  const t2 = document.getElementById('tog2');
+  if(t2) isDark ? t2.classList.add('on') : t2.classList.remove('on');
+  const lbl = document.getElementById('themeLbl');
+  if(lbl) lbl.textContent = 'Currently: '+(isDark?'Dark':'Light');
+}
+
+/* ─── TOAST ─── */
+function toast(msg, type='inf'){
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast t-'+type;
+  const icons = {ok:'✅',err:'❌',inf:'ℹ️'};
+  t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${escHtml(msg)}</span>`;
+  c.appendChild(t);
+  setTimeout(() => t.parentNode && t.parentNode.removeChild(t), 4200);
+}
+
+/* ─── MATCH NOTIFICATION CARD ─── */
+function showMatchNotification(partner, compat, room){
+  _mnPartner = partner;
+  _mnRoom    = room;
+
+  // Populate avatar
+  const [bg, cl] = avColor(partner);
+  const av = document.getElementById('mnAvInner');
+  av.textContent = partner[0].toUpperCase();
+  av.style.background = bg;
+  av.style.color = cl;
+
+  // Partner name
+  document.getElementById('mnPartnerName').textContent = '@' + partner;
+
+  // Compatibility bar + label
+  document.getElementById('mnCompatVal').textContent = compat + '%';
+  // Animate bar after a tick so CSS transition fires
+  const fill = document.getElementById('mnCompatFill');
+  fill.style.width = '0%';
+  setTimeout(() => { fill.style.width = compat + '%'; }, 60);
+
+  // Skill snippet — find overlapping skills
+  const otherUser = allUsers.find(u => u.username === partner) ||
+    storedMatchList.find(m => m.partner === partner);
+  const snippet = document.getElementById('mnSkillSnippet');
+  const tags    = document.getElementById('mnSkillTags');
+  tags.innerHTML = '';
+  if(otherUser){
+    const theyOffer = otherUser.offered || [];
+    const theyWant  = otherUser.wanted  || [];
+    const myOffered = CU.offered || [];
+    const myWanted  = CU.wanted  || [];
+    // Skills they offer that I want
+    const gains = theyOffer.filter(s => myWanted.includes(s)).slice(0,3);
+    // Skills I offer that they want
+    const gives = myOffered.filter(s => theyWant.includes(s)).slice(0,3);
+    gains.forEach(s => {
+      const el = document.createElement('span');
+      el.className = 'stag stag-want';
+      el.textContent = '← ' + s;
+      tags.appendChild(el);
+    });
+    gives.forEach(s => {
+      const el = document.createElement('span');
+      el.className = 'stag stag-off';
+      el.textContent = '→ ' + s;
+      tags.appendChild(el);
+    });
+    if(gains.length || gives.length){
+      snippet.textContent = `You can teach each other!`;
+    } else {
+      snippet.textContent = `Skill overlap detected`;
+    }
+  } else {
+    snippet.textContent = `Skill overlap detected`;
+  }
+
+  // Show card
+  const card = document.getElementById('matchNotif');
+  card.classList.add('show');
+
+  // Auto-dismiss after 9 seconds
+  if(_mnDismissTimer) clearTimeout(_mnDismissTimer);
+  _mnDismissTimer = setTimeout(dismissMatchNotif, 9000);
+}
+
+function dismissMatchNotif(){
+  if(_mnDismissTimer){ clearTimeout(_mnDismissTimer); _mnDismissTimer = null; }
+  const card = document.getElementById('matchNotif');
+  card.classList.remove('show');
+  _mnPartner = null;
+  _mnRoom    = null;
+}
+
+function matchNotifChat(){
+  const partner = _mnPartner;
+  dismissMatchNotif();
+  if(partner) setTimeout(() => openChat(partner), 200);
+}
+
+/* ─── DAY PICKER ─── */
+function initDays(gridId){
+  document.querySelectorAll(`#${gridId} .day-btn`).forEach(b => b.onclick = () => b.classList.toggle('on'));
+}
+function getDays(gridId){
+  return [...document.querySelectorAll(`#${gridId} .day-btn.on`)].map(b => b.dataset.d);
+}
+function setDays(gridId, days){
+  const s = new Set(days);
+  document.querySelectorAll(`#${gridId} .day-btn`).forEach(b => b.classList.toggle('on', s.has(b.dataset.d)));
+}
+initDays('editDays');
+initDays('signupDays');
+
+/* ─── AUTH ─── */
+const setCurrentUser  = u  => sessionStorage.setItem('ss_current', JSON.stringify(u));
+const getCurrentUser  = () => { try{ return JSON.parse(sessionStorage.getItem('ss_current')); }catch(e){return null;} };
+const clearCurrentUser= () => sessionStorage.removeItem('ss_current');
+const isValidEmail    = e  => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+let isSubmittingAuth = false;
+
+/* ─── LOGIN ─── */
+async function doLogin(){
+  if(isSubmittingAuth) return;
+  const username = document.getElementById('lUser').value.trim().toLowerCase();
+  const pass     = document.getElementById('lPass').value;
+  const err      = document.getElementById('loginErr');
+  const btn      = document.getElementById('loginBtn');
+  err.style.display='none';
+  if(!username){ err.textContent='Username is required.'; err.style.display='block'; return; }
+  if(!pass)    { err.textContent='Password is required.'; err.style.display='block'; return; }
+  isSubmittingAuth=true;
+  if(btn){ btn.disabled=true; btn.textContent='Logging in…'; }
+  try {
+    const res  = await fetch('/api/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password: pass})
+    });
+    const data = await res.json();
+    if(!res.ok){ err.textContent = data.error||'Login failed.'; err.style.display='block'; return; }
+    document.getElementById('lUser').value='';
+    document.getElementById('lPass').value='';
+    CU = data.user;
+    setCurrentUser(CU);
+    bootUser(CU);
+  } catch(e) {
+    err.textContent='Network error — is the server running?'; err.style.display='block';
+  } finally {
+    isSubmittingAuth=false;
+    if(btn){ btn.disabled=false; btn.textContent='Login →'; }
+  }
+}
+
+/* ─── SIGNUP ─── */
+async function doSignup(){
+  if(isSubmittingAuth) return;
+  const username = document.getElementById('sUser').value.trim().replace(/\s+/g,'_').toLowerCase();
+  const email    = document.getElementById('sEmail').value.trim();
+  const pass     = document.getElementById('sPass').value;
+  const offered  = (document.getElementById('sOffered').value||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const wanted   = (document.getElementById('sWanted').value||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const availability = getDays('signupDays');
+  const err      = document.getElementById('signupErr');
+  const btn      = document.getElementById('signupBtn');
+  err.style.display='none';
+
+  if(!email)             { err.textContent='Email is required.';                       err.style.display='block'; return; }
+  if(!isValidEmail(email)){ err.textContent='Enter a valid email.';                    err.style.display='block'; return; }
+  if(!username)          { err.textContent='Username is required.';                    err.style.display='block'; return; }
+  if(username.length<3)  { err.textContent='Username must be ≥ 3 chars.';             err.style.display='block'; return; }
+  if(!pass)              { err.textContent='Password is required.';                    err.style.display='block'; return; }
+  if(pass.length<6)      { err.textContent='Password must be ≥ 6 chars.';             err.style.display='block'; return; }
+  if(!offered.length)    { err.textContent='Enter at least one skill you can teach.';  err.style.display='block'; return; }
+  if(!wanted.length)     { err.textContent='Enter at least one skill you want to learn.'; err.style.display='block'; return; }
+
+  isSubmittingAuth=true;
+  if(btn){ btn.disabled=true; btn.textContent='Creating…'; }
+  try {
+    const res  = await fetch('/api/signup', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, name:username, email, password:pass, offered, wanted, availability})
+    });
+    const data = await res.json();
+    if(!res.ok){ err.textContent = data.error||'Signup failed.'; err.style.display='block'; return; }
+
+    const loginRes  = await fetch('/api/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password:pass})
+    });
+    const loginData = await loginRes.json();
+    if(!loginRes.ok){ err.textContent='Account created but login failed.'; err.style.display='block'; return; }
+
+    ['sEmail','sUser','sPass','sOffered','sWanted'].forEach(id => { document.getElementById(id).value=''; });
+    document.querySelectorAll('#signupDays .day-btn').forEach(b=>b.classList.remove('on'));
+    toast('Account created! Welcome to SkillSync 🎉','ok');
+    CU = loginData.user;
+    setCurrentUser(CU);
+    bootUser(CU);
+  } catch(e) {
+    err.textContent='Network error — is the server running?'; err.style.display='block';
+  } finally {
+    isSubmittingAuth=false;
+    if(btn){ btn.disabled=false; btn.textContent='Create Account →'; }
+  }
+}
+
+/* ─── BOOT USER ─── */
+function bootUser(u){
+  CU = u;
+  allUsers=[]; rooms={}; chats={}; storedMatchList=[];
+  activeChatPartner=null; unreadCounts={}; notifications=[]; packetLogEntries=[]; msgCount=0;
+  if(!CU.badges)      CU.badges=  ['🌱 Newcomer'];
+  if(!CU.streak)      CU.streak=  1;
+  if(!CU.sessions)    CU.sessions=0;
+  if(!CU.reputation)  CU.reputation=10;
+  if(!CU.connections) CU.connections=[];
+
+  const [bg,cl] = avColor(CU.name||CU.username);
+  const sbAv = document.getElementById('sbAv');
+  if(sbAv){ sbAv.textContent=(CU.name||CU.username)[0].toUpperCase(); sbAv.style.background=bg; sbAv.style.color=cl; }
+  const sbName = document.getElementById('sbName');
+  if(sbName) sbName.textContent = CU.name||CU.username;
+  const sbRep = document.getElementById('sbRep');
+  if(sbRep) sbRep.textContent = `⭐ ${CU.reputation} pts`;
+  const greet = document.getElementById('greetName');
+  if(greet) greet.textContent = (CU.name||CU.username).split(' ')[0];
+
+  refreshStats();
+  updateRepRing(CU.reputation);
+  const sn = document.getElementById('streakN');
+  if(sn) sn.textContent = CU.streak||0;
+  renderTrending();
+  renderProfile();
+  renderLeaderboard();
+
+  fetch('/api/get-matches/' + encodeURIComponent(CU.username))
+    .then(r=>r.json())
+    .then(data=>{
+      (data.matches||[]).forEach(m=>{
+        const room = m.room || [CU.username, m.partner].sort().join('_');
+        addRoom(room, m.partner);
+      });
+      storedMatchList = data.matches||[];
+      renderMatches();
+      renderChatList();
+      updateChatBadge();
+      renderLeaderboard();
+    })
+    .catch(()=>{})
+    .finally(()=>{
+      _showPage('dashboard');
+      showTab('home');
+      connectSocket();
+    });
+
+  if(!CU.offered||!CU.offered.length||!CU.wanted||!CU.wanted.length){
+    setTimeout(()=>{ toast('👋 Add your skills in your Profile to start matching!','inf'); }, 800);
+  }
+}
+
+/* ─── SOCKET.IO ─── */
+function connectSocket(){
+  if(socket){
+    socket.off();
+    socket.disconnect();
+    socket=null;
+  }
+  socket = io({transports:['websocket','polling']});
+
+  socket.on('connect', () => {
+    logPacket('ACK','Socket ESTABLISHED','conn');
+    socket.emit('register_user',{
+      username:CU.username, name:CU.name||CU.username,
+      offered:CU.offered, wanted:CU.wanted,
+      availability:CU.availability, reputation:CU.reputation
+    });
+  });
+
+  socket.on('registration_success', d => {
+    logPacket('ACK','Registration confirmed — node online','conn');
+    toast('Connected to SkillSync network! 🌐','ok');
+    if (d.users && d.users.length) {
+      allUsers = d.users;
+      renderMatches(); renderOnlineNow(); refreshStats(); renderNetworkMonitor();
+    }
+    if (CU) fetchStoredMatches(CU.username);
+  });
+
+  socket.on('registration_error', d => {
+    logPacket('RST','Registration error: '+d.message,'err');
+    toast(d.message,'err');
+  });
+
+  socket.on('update_user_list', d => {
+    logPacket('LSA','Topology update — '+d.node_count+' nodes, '+d.edge_count+' links','lsa');
+    allUsers = d.users||[];
+    renderMatches(); renderOnlineNow(); refreshStats(); renderNetworkMonitor();
+  });
+
+  /* CN: Auto-match — bidirectional edge detected */
+  socket.on('match_found', d => {
+    logPacket('SYN','Match found → @'+d.partner+' compat='+d.compat+'%','syn');
+    const alreadyKnown = storedMatchList.some(m=>m.partner===d.partner) || Object.values(rooms).includes(d.partner);
+    addRoom(d.room, d.partner);
+    socket.emit('join_chat',{room:d.room});
+    renderChatList(); renderMatches(); updateChatBadge();
+    if(!alreadyKnown){
+      showMatchNotification(d.partner, d.compat, d.room);
+      addNotification(`Matched with @${d.partner} — ${d.compat}% compatibility!`,'🎯','match');
+    }
+  });
+
+  socket.on('connection_request', d => {
+    logPacket('SYN','Connection request from @'+d.from,'syn');
+    pendingReq = d;
+    const el = document.getElementById('incomingFrom');
+    if(el) el.textContent = '@'+(d.from_name||d.from);
+    const em = document.getElementById('incomingMsg');
+    if(em) em.textContent = d.message ? `"${d.message}"` : '';
+    document.getElementById('mIncoming').classList.remove('hidden');
+    addNotification(`@${d.from_name||d.from} sent you a connection request!`,'🤝','request');
+    bumpNotif();
+  });
+
+  socket.on('request_accepted', d => {
+    logPacket('ACK','Connection ESTABLISHED with @'+d.from,'ack');
+    toast(`🎉 @${d.from_name||d.from} accepted your request!`,'ok');
+    addNotification(`@${d.from_name||d.from} accepted your connection request!`,'✅','match');
+    addRoom(d.room, d.from);
+    socket.emit('join_chat',{room:d.room});
+    renderChatList(); renderMatches(); updateChatBadge();
+    gainRep(10,'Connection established');
+  });
+
+  socket.on('request_declined', d => {
+    logPacket('RST','Connection refused by @'+d.from,'err');
+    toast(`@${d.from_name||d.from} declined your request`,'inf');
+    addNotification(`@${d.from_name||d.from} declined your request.`,'❌','info');
+  });
+
+  socket.on('receive_message', d => {
+    const p = d.username;
+    if(p===CU.username) return;
+    logPacket('DATA','Message from @'+p+': '+d.message.substring(0,30)+(d.message.length>30?'…':''),'data');
+    if(!chats[p]) chats[p]=[];
+    chats[p].push({sender:p, msg:d.message, time:nowStr()});
+    if(activeChatPartner===p){
+      appendBubble(p, d.message, false);
+    } else {
+      unreadCounts[p] = (unreadCounts[p]||0)+1;
+      updateChatBadge();
+      addNotification(`New message from @${p}: ${d.message.substring(0,60)}${d.message.length>60?'…':''}`, '💬','msg');
+    }
+    updateChatListItem(p);
+  });
+
+  socket.on('typing', d => {
+    if(d.username!==CU.username && activeChatPartner===d.username) showTyping();
+  });
+
+  socket.on('peer_offline', d => {
+    toast(`@${d.username} is not online`,'inf');
+  });
+
+  socket.on('disconnect', r => {
+    logPacket('RST','Socket disconnected: '+r,'err');
+    console.warn('Disconnected:', r);
+  });
+  socket.on('connect_error', e => {
+    logPacket('RST','Connect error: '+e.message,'err');
+    console.error('Socket error:', e.message);
+  });
+}
+
+/* ─── PACKET LOG ─── */
+function logPacket(type, msg, cls){
+  const entry = {type, msg, cls, time:nowStr()};
+  packetLogEntries.unshift(entry);
+  if(packetLogEntries.length>100) packetLogEntries.pop();
+  const log = document.getElementById('packetLog');
+  if(log){
+    const row = document.createElement('div');
+    row.className='packet-row';
+    const clsMap={syn:'pk-syn',ack:'pk-ack',data:'pk-data',err:'pk-rst',lsa:'pk-lsa',conn:'pk-ack'};
+    row.innerHTML=`<span class="pk-time">${entry.time}</span><span class="pk-type ${clsMap[cls]||'pk-ack'}">${type}</span><span class="pk-msg">${escHtml(msg)}</span>`;
+    log.prepend(row);
+    while(log.children.length>50) log.removeChild(log.lastChild);
+  }
+}
+
+/* ─── ROOM HELPERS ─── */
+function addRoom(room, partner){
+  rooms[room] = partner;
+  if(!chats[partner]) chats[partner]=[];
+}
+function roomFor(partner){
+  for(const [r,p] of Object.entries(rooms)) if(p===partner) return r;
+  return [CU.username,partner].sort().join('_');
+}
+function isConnected(partner){ return Object.values(rooms).includes(partner); }
+function hasPendingSent(partner){ return (CU&&CU._pendingSent||[]).includes(partner); }
+
+/* ─── COMPATIBILITY ─── */
+function compat(a,b){
+  const aOff=new Set(a.offered||[]),aWant=new Set(a.wanted||[]);
+  const bOff=new Set(b.offered||[]),bWant=new Set(b.wanted||[]);
+  let shared=0,total=0;
+  aWant.forEach(s=>{total++;if(bOff.has(s))shared++;});
+  bWant.forEach(s=>{total++;if(aOff.has(s))shared++;});
+  const skill = total ? shared/total*100 : 0;
+  const aA=new Set(a.availability||[]),bA=new Set(b.availability||[]);
+  let avail=50;
+  if(aA.size&&bA.size){let ov=0;aA.forEach(d=>{if(bA.has(d))ov++;});avail=ov/Math.max(aA.size,bA.size)*100;}
+  const rep = Math.min((b.reputation||10)/200*100,100);
+  return Math.round(skill*.5+avail*.3+rep*.2);
+}
+
+/* ─── RENDER MATCHES ─── */
+function renderMatches(){
+  if(!CU) return;
+  const onlineMap = {};
+  allUsers.forEach(u => { onlineMap[u.username] = true; });
+  const seen = new Set();
+  const list = allUsers
+    .filter(u => u.username !== CU.username)
+    .map(u => ({...u, score:compat(CU,u), online:true}))
+    .sort((a,b) => b.score-a.score);
+  list.forEach(u => seen.add(u.username));
+  storedMatchList.forEach(m => {
+    if (!seen.has(m.partner) && m.partner !== CU.username) {
+      seen.add(m.partner);
+      list.push({
+        username:     m.partner,
+        name:         m.partner_name || m.partner,
+        offered:      m.offered || [],
+        wanted:       m.wanted  || [],
+        score:        m.compat  || 0,
+        online:       !!onlineMap[m.partner],
+        availability: m.availability || [],
+        reputation:   m.reputation   || 10,
+      });
+    }
+  });
+  list.sort((a,b) => (b.online - a.online) || (b.score - a.score));
+
+  const rec = document.getElementById('recMatches');
+  const recEmpty = document.getElementById('recEmpty');
+  if(rec){
+    if(list.length){
+      recEmpty && recEmpty.classList.add('hidden');
+      rec.innerHTML='';
+      list.slice(0,3).forEach(u=>rec.appendChild(mkMatchCard(u)));
+    } else {
+      rec.innerHTML='';
+      recEmpty && recEmpty.classList.remove('hidden');
+    }
+  }
+  const all = document.getElementById('allMatches');
+  const nm  = document.getElementById('noMatchesMsg');
+  if(all){
+    if(list.length){
+      nm && nm.classList.add('hidden');
+      all.innerHTML='';
+      list.forEach(u=>all.appendChild(mkMatchCard(u)));
+    } else {
+      all.innerHTML='';
+      nm && nm.classList.remove('hidden');
+    }
+  }
+  refreshStats();
+}
+
+function mkMatchCard(u){
+  const [bg,cl] = avColor(u.username);
+  const circ = 2*Math.PI*22, off = circ*(1-u.score/100);
+  const col = u.score>=70?'var(--a4)':u.score>=40?'var(--a)':'var(--a3)';
+  const connected = isConnected(u.username);
+  const pendSent  = hasPendingSent(u.username);
+  const isOnline  = u.online !== false;
+  const d = document.createElement('div');
+  d.className='mc';
+  d.innerHTML=`
+    <div class="mc-head">
+      <div class="av av-sm" style="background:${bg};color:${cl}">${u.username[0].toUpperCase()}</div>
+      <div class="mc-info">
+        <div class="mc-name">@${escHtml(u.username)}
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+            background:${isOnline?'var(--a4)':'var(--txt3)'};
+            box-shadow:${isOnline?'0 0 5px var(--a4)':'none'};
+            margin-left:5px;vertical-align:middle" title="${isOnline?'Online':'Offline'}"></span>
+        </div>
+        <div class="mc-sub">${escHtml(u.name||u.username)} · ${isOnline?'<span style="color:var(--a4);font-size:10px">● Online</span>':'<span style="color:var(--txt3);font-size:10px">○ Offline</span>'}</div>
+      </div>
+      <div class="cring">
+        <svg width="50" height="50" viewBox="0 0 50 50">
+          <circle class="cr-t" cx="25" cy="25" r="22"/>
+          <circle class="cr-f" cx="25" cy="25" r="22" stroke="${col}" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/>
+        </svg>
+        <div class="cring-txt" style="color:${col}">${u.score}%</div>
+      </div>
+    </div>
+    <div class="mc-skills">
+      <div class="mc-sl">Offers</div>
+      <div>${(u.offered||[]).slice(0,4).map(s=>`<span class="stag stag-off">${escHtml(s)}</span>`).join('')}</div>
+    </div>
+    <div class="mc-skills" style="margin-bottom:0">
+      <div class="mc-sl">Wants</div>
+      <div>${(u.wanted||[]).slice(0,4).map(s=>`<span class="stag stag-want">${escHtml(s)}</span>`).join('')}</div>
+    </div>
+    <div class="mc-foot">
+      ${connected
+        ? `<span class="conn-badge">✓ Connected</span><button class="btn btn-pri btn-sm" onclick="openChat('${escHtml(u.username)}')">💬 Chat</button>`
+        : pendSent
+          ? `<span class="pend-badge">⏳ SYN Sent</span>`
+          : `<button class="btn btn-sec btn-sm" onclick="openConnModal('${escHtml(u.username)}')">🤝 Connect (SYN)</button>`
+      }
+    </div>`;
+  return d;
+}
+
+function filterMatches(){
+  const q = document.getElementById('mFilter').value.toLowerCase();
+  document.querySelectorAll('#allMatches .mc').forEach(c => {
+    c.style.display = c.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+/* ─── CONNECTION REQUEST FLOW ─── */
+function openConnModal(uname){
+  connTarget = uname;
+  const ct = document.getElementById('connTo');
+  if(ct) ct.textContent = '@'+uname;
+  const cm = document.getElementById('connMsg');
+  if(cm) cm.value='';
+  document.getElementById('mConn').classList.remove('hidden');
+}
+
+function sendConnReq(){
+  if(!connTarget||!socket) return;
+  const msg = document.getElementById('connMsg')?.value.trim()||'';
+  logPacket('SYN','Sending connection request to @'+connTarget,'syn');
+  socket.emit('connection_request',{to:connTarget,from:CU.username,message:msg});
+  if(!CU._pendingSent) CU._pendingSent=[];
+  CU._pendingSent.push(connTarget);
+  closeModal('mConn');
+  toast(`SYN sent to @${connTarget}!`,'ok');
+  renderMatches();
+}
+
+function respondReq(accept){
+  if(!pendingReq||!socket) return;
+  logPacket(accept?'ACK':'RST', (accept?'SYN-ACK: accepting':'RST: declining')+' @'+pendingReq.from, accept?'ack':'err');
+  socket.emit('respond_request',{from:pendingReq.from,to:CU.username,accept});
+  if(accept){
+    const room = [pendingReq.from,CU.username].sort().join('_');
+    addRoom(room,pendingReq.from);
+    socket.emit('join_chat',{room});
+    renderChatList(); renderMatches();
+    toast(`Connected with @${pendingReq.from}! Session ESTABLISHED 🎉`,'ok');
+    addNotification(`You connected with @${pendingReq.from}! Session ESTABLISHED.`,'✅','match');
+    gainRep(10,'Connection accepted');
+  } else {
+    toast(`Declined @${pendingReq.from}`,'inf');
+  }
+  closeModal('mIncoming');
+  pendingReq=null;
+}
+
+/* ─── CHAT ─── */
+function openChat(partner){
+  const room = roomFor(partner);
+  if(!Object.values(rooms).includes(partner)){
+    addRoom(room,partner);
+    socket&&socket.emit('join_chat',{room});
+  }
+  showTab('chat');
+  setTimeout(()=>selectConv(partner),80);
+}
+
+function selectConv(partner){
+  activeChatPartner = partner;
+  unreadCounts[partner]=0;
+  updateChatBadge();
+  document.querySelectorAll('.ci').forEach(el=>el.classList.toggle('active',el.dataset.partner===partner));
+  renderChatWindow(partner);
+}
+
+function renderChatList(){
+  const list = document.getElementById('chatList');
+  if(!list) return;
+  const partners = Object.values(rooms);
+  if(!partners.length){
+    list.innerHTML=`<div class="chat-no-sel" style="height:100%;padding:30px"><div class="big">💬</div><p>No conversations yet</p></div>`;
+    return;
+  }
+  list.innerHTML='';
+  partners.forEach(p=>{
+    const msgs = chats[p]||[];
+    const last = msgs[msgs.length-1];
+    const [bg,cl] = avColor(p);
+    const unread  = unreadCounts[p]||0;
+    const item = document.createElement('div');
+    item.className='ci'+(activeChatPartner===p?' active':'');
+    item.dataset.partner=p;
+    item.innerHTML=`
+      <div class="av av-sm" style="background:${bg};color:${cl}">${p[0].toUpperCase()}</div>
+      <div class="ci-info">
+        <div class="ci-name">@${escHtml(p)}</div>
+        <div class="ci-prev">${last?(last.sender===CU.username?'You: ':'')+escHtml(last.msg):'Start chatting!'}</div>
+      </div>
+      ${unread?`<span class="unread">${unread}</span>`:`<span class="ci-time">${last?last.time:''}</span>`}`;
+    item.onclick = ()=>selectConv(p);
+    list.appendChild(item);
+  });
+}
+
+function updateChatListItem(){ renderChatList(); }
+
+async function renderChatWindow(partner){
+  const [bg,cl] = avColor(partner);
+  const main = document.getElementById('chatMain');
+  if(!main) return;
+  const room = roomFor(partner);
+  const isOnline = storedMatchList.find(m=>m.partner===partner)?.online !== false;
+  main.innerHTML=`
+    <div class="chat-hdr">
+      <div class="av av-sm" style="background:${bg};color:${cl}">${partner[0].toUpperCase()}</div>
+      <div class="chat-hdr-info">
+        <div class="chat-hdr-name">@${escHtml(partner)}
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+            background:${isOnline?'var(--a4)':'var(--txt3)'};margin-left:6px;vertical-align:middle"></span>
+        </div>
+        <div class="chat-hdr-st">${isOnline?'🟢 Online':'⚫ Offline'} — <span class="chat-hdr-cn mono">room: ${room}</span></div>
+      </div>
+      <button class="btn btn-sec btn-sm" onclick="openRateModal('${escHtml(partner)}')">⭐ Rate Session</button>
+    </div>
+    <div class="chat-msgs" id="chatMsgs"><div class="chat-empty-state"><div class="big">⏳</div><p>Loading messages…</p></div></div>
+    <div class="chat-inp-row">
+      <input type="text" class="inp" id="chatInp" placeholder="Type a message… (Enter to send)" autocomplete="off"/>
+      <button class="btn btn-pri btn-sm" onclick="sendMsg()">Send</button>
+    </div>`;
+  const inp = document.getElementById('chatInp');
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); }
+    else socket&&socket.emit('typing',{room,username:CU.username});
+  });
+  inp.focus();
+
+  try {
+    const res  = await fetch('/api/messages/' + encodeURIComponent(room));
+    const data = await res.json();
+    const history = data.messages || [];
+    const inMem = chats[partner] || [];
+    chats[partner] = history.map(m => ({sender:m.sender, msg:m.content, time: new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}));
+    inMem.forEach(m => { if(!chats[partner].find(x=>x.msg===m.msg&&x.sender===m.sender)) chats[partner].push(m); });
+
+    const box = document.getElementById('chatMsgs');
+    if(!chats[partner].length){
+      box.innerHTML=`<div class="chat-empty-state"><div class="big">👋</div><p>No messages yet — say hello!</p></div>`;
+    } else {
+      box.innerHTML='';
+      chats[partner].forEach(m=>appendBubble(m.sender,m.msg,m.sender===CU.username,false));
+    }
+    box.scrollTop=box.scrollHeight;
+  } catch(e) {
+    const box = document.getElementById('chatMsgs');
+    if(box) box.innerHTML=`<div class="chat-empty-state"><div class="big">👋</div><p>Say hello!</p></div>`;
+  }
+}
+
+function appendBubble(sender,msg,isMine,scroll=true){
+  const box = document.getElementById('chatMsgs');
+  if(!box) return;
+  const empty = box.querySelector('.chat-empty-state');
+  if(empty) empty.remove();
+  const row = document.createElement('div');
+  row.className='msg-row';
+  row.innerHTML=`
+    <div class="bubble ${isMine?'mine':'theirs'}">${escHtml(msg)}</div>
+    <div class="msg-meta ${isMine?'mine':'theirs'}">
+      ${!isMine?`<span>@${escHtml(sender)}</span> · `:''}${nowStr()}
+      ${isMine?'<span style="color:var(--a2)">✓✓</span>':''}
+    </div>`;
+  box.appendChild(row);
+  if(scroll) box.scrollTop=box.scrollHeight;
+}
+
+let typingTimer;
+function showTyping(){
+  const box = document.getElementById('chatMsgs');
+  if(!box) return;
+  let ti = document.getElementById('typingInd');
+  if(!ti){
+    ti=document.createElement('div'); ti.id='typingInd'; ti.className='typing';
+    ti.innerHTML='<div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>';
+    box.appendChild(ti);
+  }
+  box.scrollTop=box.scrollHeight;
+  clearTimeout(typingTimer);
+  typingTimer=setTimeout(()=>ti.parentNode&&ti.parentNode.removeChild(ti),2200);
+}
+
+/* ─── FETCH STORED MATCHES ─── */
+async function fetchStoredMatches(username) {
+  try {
+    const res  = await fetch('/api/get-matches/' + encodeURIComponent(username));
+    const data = await res.json();
+    const matches = data.matches || [];
+    if (!matches.length) return;
+
+    matches.forEach(m => {
+      const room = m.room || [username, m.partner].sort().join('_');
+      addRoom(room, m.partner);
+      socket && socket.emit('join_chat', {room});
+      logPacket('SYN', 'Stored match → @' + m.partner + ' (' + m.compat + '% compat, ' + (m.online ? 'online' : 'offline') + ')', 'syn');
+    });
+
+    storedMatchList = matches;
+    renderMatches();
+    renderChatList();
+    updateChatBadge();
+  } catch(e) {
+    console.warn('fetchStoredMatches error:', e);
+  }
+}
+
+function sendMsg(){
+  const inp = document.getElementById('chatInp');
+  if(!inp) return;
+  const msg = inp.value.trim();
+  if(!msg||!activeChatPartner||!socket) return;
+  const room = roomFor(activeChatPartner);
+  logPacket('DATA','Sending → @'+activeChatPartner+': '+msg.substring(0,30),'data');
+  socket.emit('send_message',{room,username:CU.username,message:msg});
+  if(!chats[activeChatPartner]) chats[activeChatPartner]=[];
+  chats[activeChatPartner].push({sender:CU.username,msg,time:nowStr()});
+  appendBubble(CU.username,msg,true);
+  updateChatListItem(activeChatPartner);
+  inp.value='';
+  msgCount++;
+  if(msgCount%5===0) gainRep(1,'Active in chat');
+}
+
+function filterChats(){
+  const q = document.getElementById('chatSearch')?.value.toLowerCase()||'';
+  document.querySelectorAll('.ci').forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q)?'':'none');
+}
+
+function updateChatBadge(){
+  const total = Object.values(unreadCounts).reduce((a,b)=>a+b,0);
+  const b = document.getElementById('chatBadge');
+  if(b){ if(total>0){b.textContent=total;b.classList.remove('hidden')} else b.classList.add('hidden'); }
+}
+
+/* ─── RATING ─── */
+function openRateModal(partner){
+  rateTarget=partner; starVal=0;
+  const rp = document.getElementById('ratePartner');
+  if(rp) rp.textContent='@'+partner;
+  document.querySelectorAll('.star').forEach(s=>s.style.opacity='.35');
+  document.getElementById('mRate').classList.remove('hidden');
+}
+function selectStar(v){
+  starVal=v;
+  document.querySelectorAll('.star').forEach(s=>s.style.opacity=parseInt(s.dataset.v)<=v?'1':'.3');
+}
+function submitRating(){
+  if(!starVal){toast('Select a star rating','err');return;}
+  const pts=[0,5,10,15,20,30][starVal];
+  CU.sessions=(CU.sessions||0)+1;
+  gainRep(pts,`${starVal}⭐ session rating`);
+  toast(`Rated @${rateTarget} ${starVal}⭐ — +${pts} pts!`,'ok');
+  addNotification(`Session rated with @${rateTarget}: ${starVal}⭐ (+${pts} pts)`,'⭐','info');
+  closeModal('mRate');
+  rateTarget=null;
+}
+
+/* ─── PROFILE ─── */
+function renderProfile(){
+  if(!CU) return;
+  if(!CU.badges) CU.badges=['🌱 Newcomer'];
+  const [bg,cl] = avColor(CU.name||CU.username);
+  const av = document.getElementById('profAv');
+  if(!av) return;
+  av.textContent=(CU.name||CU.username)[0].toUpperCase(); av.style.background=bg; av.style.color=cl;
+  const pn = document.getElementById('profName');
+  if(pn) pn.textContent=CU.name||CU.username;
+  const pe = document.getElementById('profEmail');
+  if(pe) pe.textContent=CU.email||'';
+  const pb = document.getElementById('profBadges');
+  if(pb) pb.innerHTML=(CU.badges||[]).map(b=>`<span class="badge">${escHtml(b)}</span>`).join('');
+  const po = document.getElementById('profOff');
+  if(po) po.innerHTML=(CU.offered||[]).map(s=>`<span class="stag stag-off">${escHtml(s)}</span>`).join('');
+  const pw = document.getElementById('profWant');
+  if(pw) pw.innerHTML=(CU.wanted||[]).map(s=>`<span class="stag stag-want">${escHtml(s)}</span>`).join('');
+  const pa = document.getElementById('profAvail');
+  if(pa) pa.innerHTML=(CU.availability||[]).map(d=>`<span class="stag stag-n">${escHtml(d)}</span>`).join('');
+  const sn = document.getElementById('streakN');
+  if(sn) sn.textContent=CU.streak||0;
+  const rb = document.getElementById('repBreak');
+  if(rb) rb.innerHTML=[
+    ['Teaching Sessions', Math.min((CU.sessions||0)*10,100)],
+    ['Connection Rate',   Math.min(Object.keys(rooms).length*25,100)||10],
+    ['Availability Match',70],
+    ['Peer Ratings',      Math.min((CU.reputation||10)/5,100)]
+  ].map(([l,v])=>`<div class="rep-bar-wrap">
+    <div class="rep-bar-lbl"><span>${l}</span><span>${Math.round(v)}%</span></div>
+    <div class="rep-bar-track"><div class="rep-bar-fill" style="width:${v}%"></div></div>
+  </div>`).join('');
+}
+
+function openEditModal(){
+  const eo = document.getElementById('editOff');
+  if(eo) eo.value=(CU.offered||[]).join(', ');
+  const ew = document.getElementById('editWant');
+  if(ew) ew.value=(CU.wanted||[]).join(', ');
+  setDays('editDays',CU.availability||[]);
+  document.getElementById('mEdit').classList.remove('hidden');
+}
+
+async function saveEdit(){
+  const off   = document.getElementById('editOff').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const want  = document.getElementById('editWant').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const avail = getDays('editDays');
+  if(!off.length||!want.length){toast('Skills cannot be empty','err');return;}
+
+  try {
+    const res = await fetch('/api/update-profile', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username:CU.username, offered:off, wanted:want, availability:avail})
+    });
+    if(!res.ok){ toast('Failed to save profile','err'); return; }
+  } catch(e) {
+    toast('Network error saving profile','err'); return;
+  }
+
+  CU.offered=off; CU.wanted=want; CU.availability=avail;
+  setCurrentUser(CU);
+  renderProfile();
+  if(socket) socket.emit('register_user',{
+    username:CU.username, name:CU.name||CU.username,
+    offered:off, wanted:want, availability:avail, reputation:CU.reputation
+  });
+  closeModal('mEdit');
+  toast('Profile updated! Re-broadcasting to network…','ok');
+}
+
+/* ─── REPUTATION / GAMIFICATION ─── */
+function gainRep(pts,reason){
+  CU.reputation=(CU.reputation||0)+pts;
+  if(pts>=20&&!CU.badges.includes('🔥 Hot Exchanger')) CU.badges.push('🔥 Hot Exchanger');
+  if(CU.reputation>=50&&!CU.badges.includes('⭐ Rising Star')) CU.badges.push('⭐ Rising Star');
+  if(CU.reputation>=100&&!CU.badges.includes('🏆 Expert')) CU.badges.push('🏆 Expert');
+  if(CU.reputation>=200&&!CU.badges.includes('🌟 Network Legend')) CU.badges.push('🌟 Network Legend');
+  persistUser();
+  updateRepRing(CU.reputation);
+  const sr = document.getElementById('stRep');
+  if(sr) sr.textContent=CU.reputation;
+  const sbr = document.getElementById('sbRep');
+  if(sbr) sbr.textContent=`⭐ ${CU.reputation} pts`;
+  if(socket) socket.emit('update_reputation',{username:CU.username,reputation:CU.reputation});
+  renderProfile(); renderLeaderboard();
+}
+
+function updateRepRing(pts){
+  const max=500, pct=Math.min(pts/max,1), circ=2*Math.PI*48;
+  const arc = document.getElementById('repArc');
+  if(arc) arc.setAttribute('stroke-dashoffset',(circ*(1-pct)).toFixed(1));
+  const rn = document.getElementById('repN');
+  if(rn) rn.textContent=pts;
+}
+
+function persistUser(){
+  if(CU) setCurrentUser(CU);
+  if(CU && socket) socket.emit('update_reputation',{username:CU.username, reputation:CU.reputation||10});
+}
+
+/* ─── LEADERBOARD ─── */
+function renderLeaderboard(){
+  const merged = {};
+  if(CU) merged[CU.username]={name:CU.name||CU.username, username:CU.username, reputation:CU.reputation||10};
+  allUsers.forEach(u=>{
+    if(merged[u.username]) merged[u.username].reputation=Math.max(merged[u.username].reputation, u.reputation||0);
+    else merged[u.username]={name:u.name||u.username, username:u.username, reputation:u.reputation||10};
+  });
+  storedMatchList.forEach(m=>{
+    if(!merged[m.partner]) merged[m.partner]={name:m.partner_name||m.partner, username:m.partner, reputation:m.reputation||10};
+  });
+  const sorted = Object.values(merged).sort((a,b)=>b.reputation-a.reputation).slice(0,8);
+  const lb = document.getElementById('leaderboard');
+  if(!lb) return;
+  lb.innerHTML=sorted.map((u,i)=>{
+    const [bg,cl]=avColor(u.username);
+    const rc=i===0?'gold':i===1?'silver':i===2?'bronze':'';
+    const isMe=CU&&u.username===CU.username;
+    return`<div class="lb-item">
+      <div class="lb-rank ${rc}">${i+1}</div>
+      <div class="av" style="width:28px;height:28px;font-size:11px;background:${bg};color:${cl}">${(u.name||u.username)[0].toUpperCase()}</div>
+      <div class="lb-name">${escHtml(u.name||u.username)}${isMe?' <span style="color:var(--a);font-size:10px">(you)</span>':''}</div>
+      <div class="lb-pts">⭐ ${u.reputation}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ─── ONLINE NOW ─── */
+function renderOnlineNow(){
+  const c = document.getElementById('onlineNow');
+  if(!c) return;
+  const others = allUsers.filter(u=>u.username!==CU?.username);
+  c.innerHTML=others.length
+    ? others.map(u=>{
+        const [bg,cl]=avColor(u.username);
+        return`<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surf);border-radius:20px;border:1px solid var(--bdr)">
+          <div class="av" style="width:20px;height:20px;font-size:9px;background:${bg};color:${cl}">${u.username[0].toUpperCase()}</div>
+          <span style="font-size:12px;font-weight:600">@${escHtml(u.username)}</span>
+          <div class="online-dot"></div>
+        </div>`;
+      }).join('')
+    : '<span style="color:var(--txt2);font-size:13px">No other users online yet.</span>';
+}
+
+/* ─── TRENDING ─── */
+function renderTrending(){
+  const c = document.getElementById('trending');
+  if(!c) return;
+  c.innerHTML=TRENDING.map(s=>`<span class="t-chip" onclick="document.getElementById('mFilter').value='${s.toLowerCase()}';showTab('matches');filterMatches()">#${s} <span class="t-up">↑${Math.floor(Math.random()*38+12)}%</span></span>`).join('');
+}
+
+/* ─── STATS ─── */
+function refreshStats(){
+  if(!CU) return;
+  const matchSet = new Set([
+    ...allUsers.filter(u=>u.username!==CU.username).map(u=>u.username),
+    ...storedMatchList.map(m=>m.partner)
+  ]);
+  const chatCnt = Object.keys(rooms).length;
+  const stM = document.getElementById('stMatches'); if(stM) stM.textContent=matchSet.size;
+  const stC = document.getElementById('stChats');   if(stC) stC.textContent=chatCnt;
+  const stR = document.getElementById('stRep');     if(stR) stR.textContent=CU.reputation;
+  const stS = document.getElementById('stStreak');  if(stS) stS.textContent=CU.streak||0;
+}
+
+/* ─── NETWORK MONITOR ─── */
+function renderNetworkMonitor(){
+  const ns = document.getElementById('netStats');
+  if(ns) ns.innerHTML=[
+    ['🌐','Online Nodes',allUsers.length,'Network nodes (OSPF routers)'],
+    ['🔗','Active Links',Object.keys(rooms).length,'Established sessions'],
+    ['📦','Packets Logged',packetLogEntries.length,'PCAP entries'],
+    ['📡','Protocol','WebSocket','RFC 6455'],
+  ].map(([ico,label,val,desc])=>`
+    <div class="stat-c">
+      <div class="stat-ico" style="background:var(--a-dim)">${ico}</div>
+      <div><div class="stat-v" style="font-size:18px">${val}</div><div class="stat-l">${label}</div><div style="font-size:10px;color:var(--txt3);margin-top:1px">${desc}</div></div>
+    </div>`).join('');
+
+  drawTopoCanvas();
+
+  const nt = document.getElementById('nodeTableWrap');
+  if(nt){
+    if(!allUsers.length){
+      nt.innerHTML='<p style="color:var(--txt2);font-size:13px;padding:10px">No nodes online yet.</p>';
+    } else {
+      nt.innerHTML=`<table class="node-table">
+        <tr><th>Node (Username)</th><th>Addr (SID hash)</th><th>Skills</th><th>Rep</th></tr>
+        ${allUsers.map(u=>`<tr>
+          <td><span class="node-online"></span>${escHtml(u.username)}</td>
+          <td style="color:var(--txt2)">${u.username.substring(0,8).split('').map(c=>c.charCodeAt(0).toString(16)).join('')}</td>
+          <td style="color:var(--txt2)">${(u.offered||[]).slice(0,2).join(', ')}</td>
+          <td style="color:var(--a4)">${u.reputation||10}</td>
+        </tr>`).join('')}
+      </table>`;
+    }
+  }
+}
+
+function drawTopoCanvas(){
+  const cv = document.getElementById('topoCanvas');
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.offsetWidth||600;
+  cv.width=W; cv.height=280;
+  ctx.clearRect(0,0,W,280);
+  const dark = document.documentElement.getAttribute('data-theme')!=='light';
+  const bgCol = dark?'#111428':'#f5f7ff';
+  ctx.fillStyle=bgCol; ctx.fillRect(0,0,W,280);
+
+  if(!allUsers.length){
+    ctx.fillStyle='#4a5278'; ctx.font='14px Outfit,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('No nodes online — waiting for connections…', W/2, 140);
+    return;
+  }
+
+  const nodes = [{username:CU?.username||'You',isSelf:true}, ...allUsers.filter(u=>u.username!==CU?.username)];
+  const cx=W/2, cy=140, R=Math.min(cx-50,100);
+  const positions = nodes.map((n,i)=>{
+    const angle = (i/nodes.length)*Math.PI*2 - Math.PI/2;
+    return{x:cx+R*Math.cos(angle),y:cy+R*Math.sin(angle),n};
+  });
+
+  Object.values(rooms).forEach(partner=>{
+    const a = positions.find(p=>p.n.username===CU?.username);
+    const b = positions.find(p=>p.n.username===partner);
+    if(a&&b){
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle='rgba(124,110,255,.5)'; ctx.lineWidth=2; ctx.stroke();
+    }
+  });
+
+  positions.forEach(({x,y,n})=>{
+    const [bg] = avColor(n.username||'U');
+    const r = n.isSelf?18:13;
+    const col = n.isSelf?'#7c6eff':'#00d4ff';
+    const g=ctx.createRadialGradient(x,y,0,x,y,r*2.5);
+    g.addColorStop(0,col+'55'); g.addColorStop(1,'transparent');
+    ctx.beginPath(); ctx.arc(x,y,r*2.5,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle=col; ctx.fill();
+    ctx.fillStyle=dark?'#e2e8ff':'#0d0f1d';
+    ctx.font=`${n.isSelf?700:500} 10px Outfit,sans-serif`;
+    ctx.textAlign='center';
+    ctx.fillText('@'+(n.username||'?').substring(0,8), x, y+r+13);
+  });
+}
+
+/* ─── NOTIFICATIONS ─── */
+function addNotification(msg,icon,type){
+  notifications.unshift({msg,icon,type,time:nowStr(),unread:true});
+  if(notifications.length>30) notifications.pop();
+  bumpNotif();
+}
+function bumpNotif(){
+  const unreadCount = notifications.filter(n=>n.unread).length;
+  const p  = document.getElementById('notifPill');
+  const sc = document.getElementById('notifSbCount');
+  if(p){ if(unreadCount>0){p.textContent=unreadCount;p.classList.remove('hidden');}else p.classList.add('hidden'); }
+  if(sc){ if(unreadCount>0){sc.textContent=unreadCount;sc.classList.remove('hidden');}else sc.classList.add('hidden'); }
+}
+function renderNotifications(){
+  notifications.forEach(n=>n.unread=false);
+  bumpNotif();
+  const list = document.getElementById('notifList');
+  if(!list) return;
+  if(!notifications.length){
+    list.innerHTML=`<div class="card" style="color:var(--txt2);font-size:13px">No notifications yet. Match with someone to get started!</div>`;
+    return;
+  }
+  list.innerHTML=notifications.map(n=>`
+    <div class="notif-item">
+      <div class="notif-icon" style="background:var(--a-dim)">${n.icon||'ℹ️'}</div>
+      <div class="notif-body">
+        <div class="notif-title">${escHtml(n.msg)}</div>
+        <div class="notif-time">${n.time}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ─── DASHBOARD TABS ─── */
+function showTab(tab){
+  document.querySelectorAll('.dtab').forEach(el=>el.classList.remove('active'));
+  const dt = document.getElementById('dt-'+tab);
+  if(dt) dt.classList.add('active');
+  document.querySelectorAll('.sb-menu a').forEach(a=>a.classList.remove('active'));
+  const lnk = document.getElementById('tab-'+tab);
+  if(lnk) lnk.classList.add('active');
+  if(tab==='home')          { renderMatches(); renderOnlineNow(); refreshStats(); renderLeaderboard(); renderTrending(); }
+  if(tab==='matches')       { renderMatches(); }
+  if(tab==='chat')          { updateChatBadge(); renderChatList(); }
+  if(tab==='profile')       { renderProfile(); renderLeaderboard(); }
+  if(tab==='network')       { renderNetworkMonitor(); }
+  if(tab==='notifications') { renderNotifications(); }
+}
+
+/* ─── SETTINGS ─── */
+function exportData(){
+  const data={user:{...CU, password_hash:undefined},chats,rooms};
+  const a=document.createElement('a');
+  a.href='data:application/json,'+encodeURIComponent(JSON.stringify(data,null,2));
+  a.download='skillsync_data.json'; a.click();
+  toast('Data exported!','ok');
+}
+async function deleteAccount(){
+  if(!confirm('Delete your account? This cannot be undone.')) return;
+  if(!CU) return;
+  try {
+    await fetch('/api/delete-account', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username: CU.username})
+    });
+  } catch(e) { /* best effort */ }
+  logout();
+  toast('Account deleted.','inf');
+}
+
+/* ─── LOGOUT ─── */
+function logout(){
+  if(socket){ socket.off(); socket.disconnect(); socket=null; }
+  clearCurrentUser();
+  dismissMatchNotif();
+  CU=null; allUsers=[]; rooms={}; chats={}; activeChatPartner=null; storedMatchList=[];
+  unreadCounts={}; notifications=[]; packetLogEntries=[]; msgCount=0;
+  go('home');
+}
+
+/* ─── MODALS ─── */
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+/* ─── HELPERS ─── */
+const AV_COLORS=[
+  ['rgba(124,110,255,.28)','#7c6eff'],['rgba(0,212,255,.2)','#00d4ff'],
+  ['rgba(0,229,160,.18)','#00e5a0'], ['rgba(255,107,157,.2)','#ff6b9d'],
+  ['rgba(255,160,64,.2)','#ffa040'],  ['rgba(0,212,255,.22)','#00b4d8'],
+];
+function avColor(name){ return AV_COLORS[(name||'U').charCodeAt(0)%AV_COLORS.length]; }
+function escHtml(t){ return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function nowStr(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+/* ─── MODAL CLICK-OUTSIDE ─── */
+document.querySelectorAll('.moverlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.add('hidden');});
+});
+
+/* ─── INIT ─── */
+window.addEventListener('DOMContentLoaded', initPage);
+</script>
+</body>
+</html>
