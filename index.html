@@ -2198,6 +2198,8 @@ function renderProfile(){
   if(pn) pn.textContent=CU.name||CU.username;
   const pe = document.getElementById('profEmail');
   if(pe) pe.textContent=CU.email||'';
+  // Load real profile photo (non-recursive)
+  setTimeout(() => renderProfilePhoto && renderProfilePhoto(CU.username, CU.name||CU.username, 'profPhotoWrap'), 0);
   const pb = document.getElementById('profBadges');
   if(pb) pb.innerHTML=(CU.badges||[]).map(b=>`<span class="badge">${escHtml(b)}</span>`).join('');
   const po = document.getElementById('profOff');
@@ -2608,13 +2610,7 @@ async function uploadAvatar(event) {
   }
 }
 
-/* Patch renderProfile to show real photo */
-const _origRenderProfile = renderProfile;
-function renderProfile() {
-  _origRenderProfile();
-  if (!CU) return;
-  renderProfilePhoto(CU.username, CU.name || CU.username, 'profPhotoWrap');
-}
+/* renderProfile photo load is handled via setTimeout inside renderProfile */
 
 /* Patch mkMatchCard to show real photo on match cards */
 const _origMkMatchCard = mkMatchCard;
